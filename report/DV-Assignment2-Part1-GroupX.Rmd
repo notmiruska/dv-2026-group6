@@ -53,16 +53,13 @@ source(here("scripts", "01-get-data.R"))
 ## Research question
 
 **What is your research question?**
-
-Which schools in a municipality are on track for reading and maths?
+Which schools in Amstelveen are on track for reading and maths?
 
 **Is it a question of analytics, inference or prediction?**
-
-Analytics- the goal is to describe and compare school performance across a municipality and identify which schools are on track for maths and reading.
+Analytics- the goal is to describe and compare school performance across Amstelveen and identify which schools are on track with the national benchmark for the higher reference levels in maths (S1) and reading (2F).
 
 **Who is the target audience for your final visualization, and how does that shape your choices?**
-
-The target audience could be a municipal education officer or a school board.
+The target audience is a municipal education officer or school board. The visualizations should be clear and easy to interpret, allowing for quick comparison between schools.
 
 ## Exploratory process
 
@@ -82,7 +79,8 @@ ref_levels <- referentieniveaus |>
   summarise(
     GEMEENTENAAM = first(GEMEENTENAAM),
     INSTELLINGSNAAM_VESTIGING = first(INSTELLINGSNAAM_VESTIGING),
-    across(all_of(count_cols), ~ sum(.x, na.rm = TRUE)), .groups = "drop") |>
+    across(all_of(count_cols), ~ sum(.x, na.rm = TRUE)), .groups = "drop"
+  ) |>
   mutate(
     #total number of students for maths and for reading
     rekenen_n = REKENEN_LAGER1F + REKENEN_1F + REKENEN_1S,
@@ -91,28 +89,32 @@ ref_levels <- referentieniveaus |>
     math_1F = 100 * REKENEN_1F / rekenen_n,
     math_1S = 100 * REKENEN_1S / rekenen_n,
     reading_1F = 100 * LV_1F / reading_n,
-    reading_2F = 100 * LV_2F / reading_n)
+    reading_2F = 100 * LV_2F / reading_n
+  )
 
 #calculate Schoolweging
 school_weights <- schoolweging |>
   mutate(INSTELLINGSCODE = str_remove(OVT, "\\|.*$")) |>
   group_by(INSTELLINGSCODE) |>
-  summarise(schoolweging = weighted.mean(schoolweging, w = aantal_leerlingen),
-    .groups = "drop")
+  summarise(
+    schoolweging = weighted.mean(schoolweging, w = aantal_leerlingen),
+    .groups = "drop"
+  )
 
 #Combine reference-level results with schoolweging
 school_data <- left_join(ref_levels, school_weights, by = "INSTELLINGSCODE")
 
 #Amstelveen Gemeente
-Amstelveen_data <- filter(school_data, GEMEENTENAAM == "Amstelveen")
+amstelveen_data <- filter(school_data, GEMEENTENAAM == "Amstelveen")
 
 #Final data
-Amstelveen_data |>
-  select( INSTELLINGSNAAM_VESTIGING, schoolweging,
-          math_1F, math_1S, reading_1F, reading_2F)
-
+amstelveen_data |>
+  select(INSTELLINGSNAAM_VESTIGING, schoolweging,
+         math_1F, math_1S, reading_1F, reading_2F)
 ```
-```{r national}
+
+
+```{r national benchmark}
 
 # National benchmark
 national <- referentieniveaus |>
@@ -135,11 +137,13 @@ national
 ```
 
 
-```{r plot 1}
+```{r plot 1, fig.width=8, fig.height=5, fig.align = "center"}
 
-plot_data <- Amstelveen_data |>
+#Select data for plot
+plot_data <- amstelveen_data |>
   select(
     INSTELLINGSNAAM_VESTIGING,
+    schoolweging,
     math_1S,
     reading_2F
   ) |>
@@ -149,6 +153,7 @@ plot_data <- Amstelveen_data |>
     values_to = "percentage"
   )
 
+#National benchmark for each higher reference level
 national_plot <- tibble(
   level = c("math_1S", "reading_2F"),
   benchmark = c(
@@ -157,49 +162,95 @@ national_plot <- tibble(
   )
 )
 
-ggplot(
+#Create plot 1
+plot1 <- ggplot(
   plot_data,
-  aes(
-    x = percentage,
-    y = reorder(INSTELLINGSNAAM_VESTIGING, percentage),
-    colour = level
-  )
-) +
+  aes(x = percentage,
+      y = reorder(INSTELLINGSNAAM_VESTIGING, -schoolweging),
+      colour = level)
+  ) +
   geom_vline(
-    data = national_plot,
+    data = national_plot, 
     aes(xintercept = benchmark, colour = level),
     linetype = "dashed",
     linewidth = 0.9
-  ) +
+    ) +
   geom_point(size = 3.5) +
   scale_colour_manual(
     values = c(
       "math_1S" = "#0072B2",
       "reading_2F" = "#E69F00"
-    ),
+      ),
     labels = c(
       "math_1S" = "Maths 1S",
       "reading_2F" = "Reading 2F"
-    )
+      )
   ) +
   labs(
     x = "Students reaching higher reference level (%)",
-    y = "School",
-    colour = "Reference level"
+    y = "School\n(by lowest schoolweging)",
+    colour = "Reference level") +
+  guides(
+    colour = guide_legend(
+      override.aes = list(
+        linetype = 0,
+        shape = 16,
+        size = 3.5
+      )
+    )
   ) +
-  theme_minimal(base_size = 13) +
+  theme_minimal() +
   theme(
-    legend.position = "top",
-    legend.title = element_text(face = "bold"),
-    axis.title = element_text(face = "bold"),
-    panel.grid.minor = element_blank(),
-    panel.grid.major.y = element_blank(),
-    panel.grid.major.x = element_line(linewidth = 0.4),
+    legend.position = "right",
+    panel.grid.major.x = element_line(linewidth = 0.5),
     axis.text.y = element_text(size = 10),
     plot.margin = margin(10, 15, 10, 10)
   )
 
+plot1
+
 ```
+Plot 1 visualizes the percentage of students that reach the higher reference levels for maths (1S) and reading (2F) in each primary school in Amstelveen. It shows which schools are on track with the national benchmarks (dashed lines) and which perform below.  
+
+```{r, warning = FALSE}
+scatterplot_data <- amstelveen_data |>
+  select(INSTELLINGSNAAM_VESTIGING, schoolweging, math_1S, reading_2F) |>
+  pivot_longer(
+    cols = c(math_1S, reading_2F),
+    names_to = "level",
+    values_to = "percentage"
+  )
+
+scatter_interactive <- ggplot(
+  scatterplot_data,
+  aes(schoolweging,
+      percentage,
+      colour = level)
+) +
+  geom_point(aes(
+    text = paste0(
+      "<b>", INSTELLINGSNAAM_VESTIGING, "</b>",
+      "<br>", round(percentage, 2), "% reaching target level",
+      "<br>School weighting: ", round(schoolweging, 2)
+    )
+  )
+  ) +
+  geom_smooth(method = "lm", se = FALSE, alpha = 0.1) +
+  scale_colour_manual(
+    values = c("math_1S" = "#0072B2", "reading_2F" = "#E69F00")
+  ) +
+  labs(
+    title = "% of Students Reaching Higher Reference Level by School Weighting",
+    x = "School weighting (higher = more disadvantaged)",
+    y = "Percentage",
+    colour = "Level"
+  ) +
+  theme_bw()
+
+ggplotly(scatter_interactive, tooltip = "text")
+```
+
+The above plot displays the percentage of students reaching the higher reference level by school weighting and subject. More students reach the target level in reading (yellow) than in math (blue), and students from more disadvantaged schools perform worse. 
 
 ---
 
