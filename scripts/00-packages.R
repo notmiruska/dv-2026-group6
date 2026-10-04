@@ -23,6 +23,7 @@ if (no_cran_mirror) {
 
 packages <- c(
   "here", # file paths that work from the project root AND from report/
+  "ggrepel", # labels that don't overlap (geom_text_repel())
   "readODS", # reads the schoolweging .ods spreadsheet
   "cowplot", # combining several ggplots into one figure (plot_grid())
   "scales", # nicer axis labels (percentages, thousands separators)
