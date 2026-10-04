@@ -13,7 +13,7 @@
 **Group members:**
 
 - Míra Sopuch
-- Kassandra Vroulli
+- Kassandra Vroullii
 - Firstname Lastname
 
 **Research question:** One sentence stating what you're investigating.
