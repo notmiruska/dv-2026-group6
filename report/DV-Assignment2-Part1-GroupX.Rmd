@@ -53,16 +53,13 @@ source(here("scripts", "01-get-data.R"))
 ## Research question
 
 **What is your research question?**
-
-Which schools in a municipality are on track for reading and maths?
+Which schools in Amstelveen are on track for reading and maths?
 
 **Is it a question of analytics, inference or prediction?**
-
-Analytics- the goal is to describe and compare school performance across a municipality and identify which schools are on track for maths and reading.
+Analytics- the goal is to describe and compare school performance across Amstelveen and identify which schools are on track with the national benchmark for the higher reference levels in maths (S1) and reading (2F).
 
 **Who is the target audience for your final visualization, and how does that shape your choices?**
-
-The target audience could be a municipal education officer or a school board.
+The target audience is a municipal education officer or school board. The visualizations should be clear and easy to interpret, allowing for quick comparison between schools.
 
 ## Exploratory process
 
@@ -114,9 +111,10 @@ amstelveen_data <- filter(school_data, GEMEENTENAAM == "Amstelveen")
 amstelveen_data |>
   select(INSTELLINGSNAAM_VESTIGING, schoolweging,
          math_1F, math_1S, reading_1F, reading_2F)
-
 ```
-```{r national}
+
+
+```{r national benchmark}
 
 # National benchmark
 national <- referentieniveaus |>
@@ -141,6 +139,7 @@ national
 
 ```{r plot 1, fig.width=8, fig.height=5, fig.align = "center"}
 
+#Select data for plot
 plot_data <- amstelveen_data |>
   select(
     INSTELLINGSNAAM_VESTIGING,
@@ -154,6 +153,7 @@ plot_data <- amstelveen_data |>
     values_to = "percentage"
   )
 
+#National benchmark for each higher reference level
 national_plot <- tibble(
   level = c("math_1S", "reading_2F"),
   benchmark = c(
@@ -162,6 +162,7 @@ national_plot <- tibble(
   )
 )
 
+#Create plot 1
 plot1 <- ggplot(
   plot_data,
   aes(x = percentage,
@@ -198,17 +199,13 @@ plot1 <- ggplot(
       )
     )
   ) +
-  theme_minimal(base_size = 13) +
+  theme_minimal() +
   theme(
     legend.position = "right",
-    legend.title = element_text(face = "bold"),
-    axis.title = element_text(face = "bold"),
-    panel.grid.minor = element_blank(),
-    panel.grid.major.x = element_line(linewidth = 0.4),
+    panel.grid.major.x = element_line(linewidth = 0.5),
     axis.text.y = element_text(size = 10),
     plot.margin = margin(10, 15, 10, 10)
-  )+
-  theme_
+  )
 
 plot1
 
