@@ -68,7 +68,137 @@ The target audience could be a municipal education officer or a school board.
 
 **Describe how you explored the data. Include at least one exploratory visualization below, and a short note on what it shows, and what you learned from it about your research question.**
 
-```{r exploratory-plot}
+```{r prepare data}
+
+#Select relevant reference-level variables
+count_cols <- c("REKENEN_LAGER1F", "REKENEN_1F", "REKENEN_1S",
+                "LV_LAGER1F", "LV_1F", "LV_2F")
+
+#Convert columns to numeric, and turn values like <5 to NA
+#Clean reference-level counts
+ref_levels <- referentieniveaus |>
+  mutate(across(all_of(count_cols), ~ suppressWarnings(as.numeric(.)))) |>
+  group_by(INSTELLINGSCODE) |>
+  summarise(
+    GEMEENTENAAM = first(GEMEENTENAAM),
+    INSTELLINGSNAAM_VESTIGING = first(INSTELLINGSNAAM_VESTIGING),
+    across(all_of(count_cols), ~ sum(.x, na.rm = TRUE)), .groups = "drop") |>
+  mutate(
+    #total number of students for maths and for reading
+    rekenen_n = REKENEN_LAGER1F + REKENEN_1F + REKENEN_1S,
+    reading_n = LV_LAGER1F + LV_1F + LV_2F,
+    #percentage of students for each level
+    math_1F = 100 * REKENEN_1F / rekenen_n,
+    math_1S = 100 * REKENEN_1S / rekenen_n,
+    reading_1F = 100 * LV_1F / reading_n,
+    reading_2F = 100 * LV_2F / reading_n)
+
+#calculate Schoolweging
+school_weights <- schoolweging |>
+  mutate(INSTELLINGSCODE = str_remove(OVT, "\\|.*$")) |>
+  group_by(INSTELLINGSCODE) |>
+  summarise(schoolweging = weighted.mean(schoolweging, w = aantal_leerlingen),
+    .groups = "drop")
+
+#Combine reference-level results with schoolweging
+school_data <- left_join(ref_levels, school_weights, by = "INSTELLINGSCODE")
+
+#Amstelveen Gemeente
+Amstelveen_data <- filter(school_data, GEMEENTENAAM == "Amstelveen")
+
+#Final data
+Amstelveen_data |>
+  select( INSTELLINGSNAAM_VESTIGING, schoolweging,
+          math_1F, math_1S, reading_1F, reading_2F)
+
+```
+```{r national}
+
+# National benchmark
+national <- referentieniveaus |>
+  mutate(across(all_of(count_cols), ~ suppressWarnings(as.numeric(.)))) |>
+  group_by(INSTELLINGSCODE) |>
+  summarise(across(all_of(count_cols), ~ sum(.x, na.rm = TRUE)),
+            .groups = "drop") |>
+  mutate(math_n = REKENEN_LAGER1F + REKENEN_1F + REKENEN_1S,
+         reading_n = LV_LAGER1F + LV_1F + LV_2F) |>
+  summarise(
+    math_n = sum(math_n, na.rm = TRUE),
+    reading_n = sum(reading_n, na.rm = TRUE),
+    math_1F = 100 * sum(REKENEN_1F, na.rm = TRUE) / math_n,
+    math_1S = 100 * sum(REKENEN_1S, na.rm = TRUE) / math_n,
+    reading_1F = 100 * sum(LV_1F, na.rm = TRUE) / reading_n,
+    reading_2F = 100 * sum(LV_2F, na.rm = TRUE) / reading_n
+  )
+
+national
+```
+
+
+```{r plot 1}
+
+plot_data <- Amstelveen_data |>
+  select(
+    INSTELLINGSNAAM_VESTIGING,
+    math_1S,
+    reading_2F
+  ) |>
+  pivot_longer(
+    cols = c(math_1S, reading_2F),
+    names_to = "level",
+    values_to = "percentage"
+  )
+
+national_plot <- tibble(
+  level = c("math_1S", "reading_2F"),
+  benchmark = c(
+    national$math_1S,
+    national$reading_2F
+  )
+)
+
+ggplot(
+  plot_data,
+  aes(
+    x = percentage,
+    y = reorder(INSTELLINGSNAAM_VESTIGING, percentage),
+    colour = level
+  )
+) +
+  geom_vline(
+    data = national_plot,
+    aes(xintercept = benchmark, colour = level),
+    linetype = "dashed",
+    linewidth = 0.9
+  ) +
+  geom_point(size = 3.5) +
+  scale_colour_manual(
+    values = c(
+      "math_1S" = "#0072B2",
+      "reading_2F" = "#E69F00"
+    ),
+    labels = c(
+      "math_1S" = "Maths 1S",
+      "reading_2F" = "Reading 2F"
+    )
+  ) +
+  labs(
+    x = "Students reaching higher reference level (%)",
+    y = "School",
+    colour = "Reference level"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position = "top",
+    legend.title = element_text(face = "bold"),
+    axis.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_line(linewidth = 0.4),
+    axis.text.y = element_text(size = 10),
+    plot.margin = margin(10, 15, 10, 10)
+  )
+
 ```
 
 ---
