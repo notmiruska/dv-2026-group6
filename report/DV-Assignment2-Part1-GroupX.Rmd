@@ -1,6 +1,6 @@
 ---
 title: "DV Assignment 2, Part 1: Which schools in a municipality are on track for reading and maths?"
-author: "Group 6: Míra Sopuch, Kassandra Vroulli, Kassandra Vroulli"
+author: "Group 6: Míra Sopuch, Kassandra Vroulli, Luna van Wonderen"
 date: "`r Sys.Date()`"
 output:
   html_document:
