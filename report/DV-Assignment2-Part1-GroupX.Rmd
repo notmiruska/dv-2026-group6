@@ -224,6 +224,8 @@ scatter_interactive <- ggplot(
 ggplotly(scatter_interactive, tooltip = "text")
 ```
 
+The above plot displays the percentage of students reaching the higher reference level by school weighting and subject. More students reach the target level in reading (yellow) than in math (blue), and students from more disadvantaged schools perform worse. 
+
 ---
 
 **Before submitting:** run the lintr check on this file, knit it, and push your work to GitHub.
