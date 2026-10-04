@@ -82,7 +82,8 @@ ref_levels <- referentieniveaus |>
   summarise(
     GEMEENTENAAM = first(GEMEENTENAAM),
     INSTELLINGSNAAM_VESTIGING = first(INSTELLINGSNAAM_VESTIGING),
-    across(all_of(count_cols), ~ sum(.x, na.rm = TRUE)), .groups = "drop") |>
+    across(all_of(count_cols), ~ sum(.x, na.rm = TRUE)), .groups = "drop"
+  ) |>
   mutate(
     #total number of students for maths and for reading
     rekenen_n = REKENEN_LAGER1F + REKENEN_1F + REKENEN_1S,
@@ -91,25 +92,28 @@ ref_levels <- referentieniveaus |>
     math_1F = 100 * REKENEN_1F / rekenen_n,
     math_1S = 100 * REKENEN_1S / rekenen_n,
     reading_1F = 100 * LV_1F / reading_n,
-    reading_2F = 100 * LV_2F / reading_n)
+    reading_2F = 100 * LV_2F / reading_n
+  )
 
 #calculate Schoolweging
 school_weights <- schoolweging |>
   mutate(INSTELLINGSCODE = str_remove(OVT, "\\|.*$")) |>
   group_by(INSTELLINGSCODE) |>
-  summarise(schoolweging = weighted.mean(schoolweging, w = aantal_leerlingen),
-    .groups = "drop")
+  summarise(
+    schoolweging = weighted.mean(schoolweging, w = aantal_leerlingen),
+    .groups = "drop"
+  )
 
 #Combine reference-level results with schoolweging
 school_data <- left_join(ref_levels, school_weights, by = "INSTELLINGSCODE")
 
 #Amstelveen Gemeente
-Amstelveen_data <- filter(school_data, GEMEENTENAAM == "Amstelveen")
+amstelveen_data <- filter(school_data, GEMEENTENAAM == "Amstelveen")
 
 #Final data
-Amstelveen_data |>
-  select( INSTELLINGSNAAM_VESTIGING, schoolweging,
-          math_1F, math_1S, reading_1F, reading_2F)
+amstelveen_data |>
+  select(INSTELLINGSNAAM_VESTIGING, schoolweging,
+         math_1F, math_1S, reading_1F, reading_2F)
 
 ```
 ```{r national}
@@ -135,9 +139,9 @@ national
 ```
 
 
-```{r plot 1, fig.width=8, fig.height=, fig.align = "center"}
+```{r plot 1, fig.width=8, fig.height=5, fig.align = "center"}
 
-plot_data <- Amstelveen_data |>
+plot_data <- amstelveen_data |>
   select(
     INSTELLINGSNAAM_VESTIGING,
     math_1S,
@@ -161,14 +165,16 @@ ggplot(
   plot_data,
   aes(x = percentage,
       y = reorder(INSTELLINGSNAAM_VESTIGING, percentage),
-      colour = level)) +
+      colour = level)
+) +
   geom_vline(data = national_plot,
              aes(xintercept = benchmark, colour = level),
              linetype = "dashed", linewidth = 0.9) +
   geom_point(size = 3.5) +
   scale_colour_manual(
     values = c("math_1S" = "#0072B2", "reading_2F" = "#E69F00"),
-    labels = c("math_1S" = "Maths 1S", "reading_2F" = "Reading 2F")) +
+    labels = c("math_1S" = "Maths 1S", "reading_2F" = "Reading 2F")
+  ) +
   labs(x = "Students reaching higher reference level (%)", y = "School",
        colour = "Reference level") +
   theme_minimal(base_size = 13) +
@@ -179,6 +185,43 @@ ggplot(
         axis.text.y = element_text(size = 10),
         plot.margin = margin(10, 15, 10, 10))
 
+```
+```{r, warning = FALSE}
+scatterplot_data <- amstelveen_data |>
+  select(INSTELLINGSNAAM_VESTIGING, schoolweging, math_1S, reading_2F) |>
+  pivot_longer(
+    cols = c(math_1S, reading_2F),
+    names_to = "level",
+    values_to = "percentage"
+  )
+
+scatter_interactive <- ggplot(
+  scatterplot_data,
+  aes(schoolweging,
+      percentage,
+      colour = level)
+) +
+  geom_point(aes(
+    text = paste0(
+      "<b>", INSTELLINGSNAAM_VESTIGING, "</b>",
+      "<br>", round(percentage, 2), "% reaching target level",
+      "<br>School weighting: ", round(schoolweging, 2)
+    )
+  )
+  ) +
+  geom_smooth(method = "lm", se = FALSE, alpha = 0.1) +
+  scale_colour_manual(
+    values = c("math_1S" = "#0072B2", "reading_2F" = "#E69F00")
+  ) +
+  labs(
+    title = "% of Students Reaching Higher Reference Level by School Weighting",
+    x = "School weighting (higher = more disadvantaged)",
+    y = "Percentage",
+    colour = "Level"
+  ) +
+  theme_bw()
+
+ggplotly(scatter_interactive, tooltip = "text")
 ```
 
 ---
