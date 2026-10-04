@@ -14,7 +14,7 @@
 
 - Míra Sopuch
 - Kassandra Vroulli
-- Firstname Lastname
+- Luna van Wonderen
 
 **Research question:** One sentence stating what you're investigating.
 
