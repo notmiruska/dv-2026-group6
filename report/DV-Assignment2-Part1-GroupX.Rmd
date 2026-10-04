@@ -208,12 +208,12 @@ plot1 <- ggplot(
     axis.text.y = element_text(size = 10),
     plot.margin = margin(10, 15, 10, 10)
   )+
-  theme_minimal()
+  theme_
 
 plot1
 
 ```
-Plot 1 visualizes the percentage of students reaching the higher reference levels for maths (1S) and reading (2F) in Amstelveen primary schools. It shows which schools are on track with the national benchmarks (dashed lines) and which perform below. 
+Plot 1 visualizes the percentage of students that reach the higher reference levels for maths (1S) and reading (2F) in each primary school in Amstelveen. It shows which schools are on track with the national benchmarks (dashed lines) and which perform below.  
 
 ```{r, warning = FALSE}
 scatterplot_data <- amstelveen_data |>
