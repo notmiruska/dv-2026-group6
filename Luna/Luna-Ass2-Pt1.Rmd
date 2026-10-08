@@ -44,7 +44,7 @@ source("../scripts/00-packages.R")
 # downloads the data into data/raw/ if you don't already have it, then loads
 # eindscores, referentieniveaus, schooladviezen and schoolweging into this
 # session - see scripts/01-get-data.R for what each one contains
-source(here("scripts", "01-get-data.R"))
+source("../scripts/01-get-data.R")
 ```
 
 ## Research question
@@ -218,3 +218,5 @@ ggplot(data = amstelveen_data,
 **Before submitting:** run the lintr check on this file, knit it, and push your work to GitHub.
 
 #run lint(rstudioapi::getSourceEditorContext()$path)
+
+### Final Plot
