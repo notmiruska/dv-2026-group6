@@ -1,0 +1,220 @@
+---
+title: "DV Assignment 2, Part 1: Amstelveen schools"
+author: "Luna van Wonderen"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+<!--
+HOW TO KNIT THIS FILE
+
+1. Open your group project in RStudio first (the `Project:` button in the
+   top right should show your repo name). Keep this file in `report/`.
+2. Click the `Knit` button at the top of this file (or press
+   Ctrl/Cmd + Shift + K). An .html file with the same name appears next to
+   this .Rmd in `report/`.
+3. Knitting starts from a clean R session: it only knows what is created
+   *in this file*. The setup chunk below sources scripts/00-packages.R and
+   scripts/01-get-data.R, so packages and data are always loaded. The first
+   knit downloads the data, so you need an internet connection.
+
+If knitting fails:
+- "could not find function": the package isn't loaded - add it to
+  scripts/00-packages.R.
+- "object not found": you created it in the Console, not in this file (or
+  in a script that this file doesn't source).
+- "cannot open file": check that the project is open, and use
+  here("folder", "file") for paths instead of typing them out.
+- Check that all code chunks have unique labels.
+- Google the error message you receive, as it often provides clues about
+  what went wrong.
+
+This comment does not show up in the knitted .html, so you can leave it here.
+-->
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# clear environment so knitting only depends on what's in this file
+rm(list = ls())
+
+# installs (if missing) and loads every package this project uses - add any
+# new packages to scripts/00-packages.R, not here
+source("../scripts/00-packages.R")
+
+# downloads the data into data/raw/ if you don't already have it, then loads
+# eindscores, referentieniveaus, schooladviezen and schoolweging into this
+# session - see scripts/01-get-data.R for what each one contains
+source(here("scripts", "01-get-data.R"))
+```
+
+## Research question
+
+**What is your research question?**
+
+Which schools in Amstelveen are on track for reading and maths?
+
+**Is it a question of analytics, inference or prediction?**
+
+Analytics- the goal is to describe and compare school performance across a municipality and identify which schools are on track for maths and reading.
+
+**Who is the target audience for your final visualization, and how does that shape your choices?**
+
+The target audience could be a municipal education officer or a school board.
+
+## Exploratory process
+
+**Describe how you explored the data. Include at least one exploratory visualization below, and a short note on what it shows, and what you learned from it about your research question.**
+```{r prepare-data}
+
+#Select relevant reference-level variables
+count_cols <- c("REKENEN_LAGER1F", "REKENEN_1F", "REKENEN_1S",
+                "LV_LAGER1F", "LV_1F", "LV_2F")
+
+# value for DUO's "<5" (1-4 pupils): the midpoint
+lt5_value <- 2.5
+
+replace_lt5 <- function(x) {
+  x <- as.character(x)
+  as.numeric(if_else(x == "<5", as.character(lt5_value), x))
+}
+
+#Convert columns to numeric, and turn values like <5 to NA
+#Clean reference-level counts
+ref_levels <- referentieniveaus |>
+  mutate(across(all_of(count_cols), replace_lt5)) |> #used to turn <5 into NA, now into 2.5 to prevent false 100$ scores? For small schools, this quite greatly influenced averages for example. 
+  group_by(INSTELLINGSCODE) |>
+  summarise(
+    GEMEENTENAAM = first(GEMEENTENAAM),
+    INSTELLINGSNAAM_VESTIGING = first(INSTELLINGSNAAM_VESTIGING),
+    across(all_of(count_cols), ~ sum(.x, na.rm = TRUE)), .groups = "drop") |>
+  mutate(
+    #total number of students for maths and for reading
+    rekenen_n = REKENEN_LAGER1F + REKENEN_1F + REKENEN_1S,
+    reading_n = LV_LAGER1F + LV_1F + LV_2F,
+    #percentage of students for each level
+    math_1F = 100 * (REKENEN_1F + REKENEN_1S) / rekenen_n,
+    math_1S = 100 * REKENEN_1S / rekenen_n,
+    reading_1F = 100 * (LV_1F + LV_2F) / reading_n,
+    reading_2F = 100 * LV_2F / reading_n
+    #DUO only count each pupil once, so to get the totals for reaching 1F in both reading and math, you must also count         the pupils that reached 1S and 2F
+  ) |>
+  filter(rekenen_n > 0, reading_n > 0)
+    #filter out schools where no pupils are counted for maths and reading, this might not occur for Amstelveen, but is          necessary for calculating averages.
+
+#calculate Schoolweging
+school_weights <- schoolweging |>
+  mutate(INSTELLINGSCODE = str_remove(OVT, "\\|.*$")) |>
+  group_by(INSTELLINGSCODE) |>
+  summarise(schoolweging = weighted.mean(schoolweging, w = aantal_leerlingen),
+    .groups = "drop")
+
+#Combine reference-level results with schoolweging
+school_data <- left_join(ref_levels, school_weights, by = "INSTELLINGSCODE")
+
+#Amstelveen Gemeente
+amstelveen_data <- filter(school_data, GEMEENTENAAM == "Amstelveen")
+
+#Final data
+amstelveen_data |>
+  select(INSTELLINGSNAAM_VESTIGING, schoolweging,
+          math_1F, math_1S, reading_1F, reading_2F)
+
+```
+## Exploratory plots
+### Calculate National Average
+```{r national-average}
+national <- school_data |>
+  summarise(
+    # weighted.mean is weighted by the number of pupils. A school with 80
+    # pupils counts more than a school with 10.
+    math_1S = weighted.mean(math_1S, w = rekenen_n),
+    reading_2F = weighted.mean(reading_2F, w = reading_n)
+  )
+```
+### Check <5
+In a first version of the scatterplot, where "<5" was treated as 0
+(as in Assignment 1), 8 Amstelveen schools appeared at exactly 100%
+reading. The check below shows why.
+```{r check-lt5}
+# 8 schools at 100% reading, this could be due to the <5 being
+# transformed into 0 for 1F, due to which 'all' pupils appeared to have
+# reached 2F.
+# check this:
+referentieniveaus |>
+  filter(GEMEENTENAAM == "Amstelveen") |>
+  select(INSTELLINGSNAAM_VESTIGING, LV_LAGER1F, LV_1F, LV_2F)
+# appears that Parcival, het Palet, Kindercampus King, de Akker,
+# de Triangel, Rembrandt, School of Understanding and Elif Amstelveen
+# possibly do not really score 100%. Based on this, decided to change the
+# schools that had <5 pupils to 2.5 instead of the original 0 as to not
+# report untrue 100% scores.
+```
+
+### Create quadrant names
+```{r quadrants}
+amstelveen_data <- amstelveen_data |>
+  mutate(
+    maths_above = math_1S >= national$math_1S,
+    reading_above = reading_2F >= national$reading_2F,
+    quadrant = case_when(
+      maths_above & reading_above ~ "Above average in both",
+      !maths_above & !reading_above ~ "Below average in both",
+      TRUE ~ "Above average in one subject"
+    )
+  )
+```
+
+### Exploratory plot
+```{r exploratory-plot, fig.width = 10, fig.height = 7}
+# one-row data frames to label the two national average lines
+reading_label <- tibble(
+  x = national$reading_2F,
+  y = Inf,
+  label = "National average reading"
+)
+maths_label <- tibble(
+  x = Inf,
+  y = national$math_1S,
+  label = "National average maths"
+)
+ggplot(data = amstelveen_data,
+       mapping = aes(x = reading_2F, y = math_1S)) +
+  geom_vline(xintercept = national$reading_2F,
+             linetype = "dashed", color = "grey50") +
+  geom_hline(yintercept = national$math_1S,
+             linetype = "dashed", color = "grey50") +
+  geom_label(data = reading_label, aes(x = x, y = y, label = label),
+             hjust = 0, vjust = 1, size = 3, fontface = "italic",
+             color = "grey40") +
+  geom_label(data = maths_label, aes(x = x, y = y, label = label),
+             hjust = 1, vjust = 0, size = 3, fontface = "italic",
+             color = "grey40") +
+  geom_point(aes(color = quadrant), size = 3) +
+  geom_text_repel(aes(label = INSTELLINGSNAAM_VESTIGING), size = 3,
+                  box.padding = 0.5, seed = 1, segment.color = NA) +
+  scale_color_manual(
+    values = c(
+      # colours also visible for colour-blind readers!
+      "Above average in both" = "#009E73",
+      "Above average in one subject" = "#E69F00",
+      "Below average in both" = "#B2182B"
+    ),
+    breaks = c(
+      "Above average in both",
+      "Above average in one subject",
+      "Below average in both"
+    )
+  ) +
+  labs(
+    title = "Amstelveen schools compared to the national average",
+    x = "% of pupils reaching reading level 2F",
+    y = "% of pupils reaching maths level 1S",
+    color = NULL
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+**Before submitting:** run the lintr check on this file, knit it, and push your work to GitHub.
+
+#run lint(rstudioapi::getSourceEditorContext()$path)

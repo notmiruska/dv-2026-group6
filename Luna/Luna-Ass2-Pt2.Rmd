@@ -1,0 +1,457 @@
+---
+title: "Luna-Ass2-Pt2"
+output: html_document
+date: "2026-10-08"
+---
+<!--
+HOW TO KNIT THIS FILE
+
+1. Open your group project in RStudio first (the `Project:` button in the
+   top right should show your repo name). Keep this file in `report/`.
+2. Click the `Knit` button at the top of this file (or press
+   Ctrl/Cmd + Shift + K). An .html file with the same name appears next to
+   this .Rmd in `report/`.
+3. Knitting starts from a clean R session: it only knows what is created
+   *in this file*. The setup chunk below sources scripts/00-packages.R and
+   scripts/01-get-data.R, so packages and data are always loaded. The first
+   knit downloads the data, so you need an internet connection.
+
+If knitting fails:
+- "could not find function": the package isn't loaded - add it to
+  scripts/00-packages.R.
+- "object not found": you created it in the Console, not in this file (or
+  in a script that this file doesn't source).
+- "cannot open file": check that the project is open, and use
+  here("folder", "file") for paths instead of typing them out.
+- Check that all code chunks have unique labels.
+- Google the error message you receive, as it often provides clues about
+  what went wrong.
+
+This comment does not show up in the knitted .html, so you can leave it here.
+-->
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# clear environment so knitting only depends on what's in this file
+rm(list = ls())
+
+# installs (if missing) and loads every package this project uses - add any
+# new packages to scripts/00-packages.R, not here
+source("../scripts/00-packages.R")
+
+# downloads the data into data/raw/ if you don't already have it, then loads
+# eindscores, referentieniveaus, schooladviezen and schoolweging into this
+source("../scripts/01-get-data.R")
+```
+
+
+```{r prepare-data}
+
+#Select relevant reference-level variables
+count_cols <- c("REKENEN_LAGER1F", "REKENEN_1F", "REKENEN_1S",
+                "LV_LAGER1F", "LV_1F", "LV_2F")
+
+# value for DUO's "<5" (1-4 pupils): the midpoint
+lt5_value <- 2.5
+
+replace_lt5 <- function(x) {
+  x <- as.character(x)
+  as.numeric(if_else(x == "<5", as.character(lt5_value), x))
+}
+
+#Convert columns to numeric, and turn values like <5 to NA
+#Clean reference-level counts
+ref_levels <- referentieniveaus |>
+  mutate(across(all_of(count_cols), replace_lt5)) |> #used to turn <5 into NA, now into 2.5 to prevent false 100$ scores? For small schools, this quite greatly influenced averages for example. 
+  group_by(INSTELLINGSCODE) |>
+  summarise(
+    GEMEENTENAAM = first(GEMEENTENAAM),
+    INSTELLINGSNAAM_VESTIGING = first(INSTELLINGSNAAM_VESTIGING),
+    across(all_of(count_cols), ~ sum(.x, na.rm = TRUE)), .groups = "drop") |>
+  mutate(
+    #total number of students for maths and for reading
+    rekenen_n = REKENEN_LAGER1F + REKENEN_1F + REKENEN_1S,
+    reading_n = LV_LAGER1F + LV_1F + LV_2F,
+    #percentage of students for each level
+    math_1F = 100 * (REKENEN_1F + REKENEN_1S) / rekenen_n,
+    math_1S = 100 * REKENEN_1S / rekenen_n,
+    reading_1F = 100 * (LV_1F + LV_2F) / reading_n,
+    reading_2F = 100 * LV_2F / reading_n
+    #DUO only count each pupil once, so to get the totals for reaching 1F in both reading and math, you must also count         the pupils that reached 1S and 2F
+  ) |>
+  filter(rekenen_n > 0, reading_n > 0)
+    #filter out schools where no pupils are counted for maths and reading, this might not occur for Amstelveen, but is          necessary for calculating averages.
+
+#calculate Schoolweging
+school_weights <- schoolweging |>
+  mutate(INSTELLINGSCODE = str_remove(OVT, "\\|.*$")) |>
+  group_by(INSTELLINGSCODE) |>
+  summarise(schoolweging = weighted.mean(schoolweging, w = aantal_leerlingen),
+    .groups = "drop")
+
+#Combine reference-level results with schoolweging
+school_data <- left_join(ref_levels, school_weights, by = "INSTELLINGSCODE")
+
+#Amstelveen Gemeente
+amstelveen_data <- filter(school_data, GEMEENTENAAM == "Amstelveen")
+
+#Final data
+amstelveen_data |>
+  select(INSTELLINGSNAAM_VESTIGING, schoolweging,
+          math_1F, math_1S, reading_1F, reading_2F)
+
+```
+
+```{r}
+#check data, should be roughly 6000 rows
+nrow(school_data)
+
+#check schools that have no schoolweging, will be removed later
+school_data |>
+  summarise(
+    no_schoolweging = sum(is.na(schoolweging)),
+    min_sw = min(schoolweging, na.rm = TRUE),
+    max_sw = max(schoolweging, na.rm = TRUE)
+  )
+
+#check all percentages
+school_data |>
+  select(math_1F, math_1S, reading_1F, reading_2F) |>
+  summary()
+```
+
+```{r filter-converse}
+# all Dutch schools, one row per school per level
+final_data <- school_data |>
+  filter(!is.na(schoolweging)) |>
+  select(INSTELLINGSNAAM_VESTIGING, GEMEENTENAAM, schoolweging,
+         rekenen_n, reading_n,
+         math_1F, math_1S, reading_1F, reading_2F) |>
+  pivot_longer(
+    cols = c(math_1F, math_1S, reading_1F, reading_2F),
+    names_to = "level",
+    values_to = "percentage"
+  ) |>
+  mutate(
+    subject = if_else(str_starts(level, "math"), "Maths", "Reading"),
+    type = if_else(str_ends(level, "1F"),
+                   "Basic level (1F)",
+                   "Target level (1S / 2F)"),
+    n_students = if_else(subject == "Maths", rekenen_n, reading_n)
+  )
+
+#check if filter and conversion was succesful, are school with no schoolweging really filtered out and is nrow(final_data) x 4 times this amount
+count(final_data, level, subject, type)
+nrow(final_data)
+```
+```{r benchmark-regression}
+# expected % based on school weighting (all Dutch schools, weighted by
+# number of pupils) (regression line); for 1F the benchmark is the fixed 85% norm
+final_data <- final_data |>
+  group_by(level) |>
+  mutate(
+    expected = predict(lm(percentage ~ schoolweging, weights = n_students)),
+    benchmark = if_else(type == "Basic level (1F)", 85, expected),
+    diff = percentage - benchmark
+  ) |>
+  ungroup()
+
+# check
+final_data |>
+  group_by(level) |>
+  summarise(
+    mean_diff = weighted.mean(diff, n_students),
+    below = sum(diff < 0)
+  )
+# 2F and 1S should be near zero, it is a weighted (so takes into account number of students) regression line, so runs through weighted middle of the data.  middle
+# remember: regression line = average that moves along with the schoolweging
+```
+Maths norm much harder to reach than reading.
+
+```{r split-data-per-layer}
+# grey background: all Dutch schools
+# national <- final_data coded out, the grey dots were messy
+
+# the municipality we highlight
+municipality <- "Amstelveen"
+
+muni_data <- final_data |>
+  filter(GEMEENTENAAM == municipality) |>
+  mutate(passed = if_else(percentage >= 85, "Yes", "No"))
+
+# Amstelveen dots, split per row of the plot (each gets its own colours)
+muni_1f <- filter(muni_data, type == "Basic level (1F)")
+muni_target <- filter(muni_data, type == "Target level (1S / 2F)")
+
+# regression line: all Dutch schools, only the target levels
+national_target <- filter(final_data, type == "Target level (1S / 2F)")
+
+# 85% norm line: one row per 1F panel
+norm_1f <- distinct(muni_1f, type, subject)
+```
+
+```{r names-in-plot}
+# names in the plot: all schools in the 1S / 2F panels, and only the
+# schools below the 85% norm in the 1F panels
+label_data <- muni_data |>
+  filter(
+    type == "Target level (1S / 2F)" |
+      (type == "Basic level (1F)" & passed == "No")
+  ) |>
+  mutate(label = if_else(
+    type == "Basic level (1F)",
+    paste0(INSTELLINGSNAAM_VESTIGING, "\n", round(percentage, 2), "%"),
+    INSTELLINGSNAAM_VESTIGING
+  ))
+
+# school name with its school weighting, for the y-axis
+muni_target <- muni_target |>
+  mutate(school_label = paste0(
+    INSTELLINGSNAAM_VESTIGING, " (SW ", round(schoolweging), ")"
+  ))
+```
+
+```{r scatter-2x2, fig.width = 11, fig.height = 8}
+ggplot(mapping = aes(x = schoolweging, y = percentage)) +
+  # 1F panels: the Inspectorate's fixed 85% norm
+  geom_hline(data = norm_1f, aes(yintercept = 85),
+             color = "grey30", linewidth = 0.8) +
+  # 1S/2F panels: expected % for schools with similar pupils,
+  # fitted on all Dutch schools and weighted by number of pupils
+  geom_smooth(data = national_target, aes(weight = n_students),
+              method = "lm", formula = y ~ x, se = FALSE,
+              linetype = "dashed", color = "grey30", linewidth = 0.8) +
+   # 1F dots: green = meets the 85% norm, red = below it
+  geom_point(data = muni_1f, aes(fill = passed, size = n_students),
+             shape = 21, color = "white", stroke = 0.4, alpha = 0.9) +
+  # 1S/2F dots: colour shows the difference from the expected %
+  # white halo behind the 1S/2F dots, so overlapping dots stay separate
+  geom_point(data = muni_target, aes(size = n_students),
+             color = "white", stroke = 1.2) +
+  geom_point(data = muni_target, aes(color = diff, size = n_students),
+             alpha = 0.75) +
+    # names below the 85% norm: to the right of the dot, below the line
+  geom_text_repel(data = filter(label_data, type == "Basic level (1F)"),
+                  aes(label = label), size = 2.8, lineheight = 0.9,
+                  nudge_x = 1, nudge_y = -1, hjust = 0, direction = "y",
+                  segment.color = NA, seed = 1) +
+  # names of all schools in the 1S / 2F panels
+  geom_text_repel(data = filter(label_data, type != "Basic level (1F)"),
+                  aes(label = label), size = 2.4, max.overlaps = Inf,
+                  box.padding = 0.3, min.segment.length = 0.3,
+                  segment.color = "grey60", segment.size = 0.3, seed = 1) +
+  scale_fill_manual(
+    values = c("Yes" = "#009E73", "No" = "#B2182B"),
+    name = "Meets 85% norm"
+  ) +
+  scale_color_gradient2(
+    low = "#B2182B", mid = "grey85", high = "#009E73", midpoint = 0,
+    limits = c(-30, 30), oob = scales::squish,
+    name = "Difference from\nexpected (%-points)"
+  ) +
+  scale_size_area(max_size = 4, name = "Pupils tested") +
+  facet_grid(
+    type ~ subject,
+    scales = "free_y",
+    labeller = labeller(type = c( #add line break
+      "Basic level (1F)" = "Basic level\n(1F)",
+      "Target level (1S / 2F)" = "Target level\n(1S / 2F)"
+    ))
+  ) +
+  # order of the legends: 1F colours, 1S/2F colours, dot size and determine size
+  guides(
+    fill = guide_legend(order = 1, override.aes = list(size = 4)),
+    size = guide_legend(order = 2),
+    color = guide_colorbar(order = 3),
+  ) +
+  # zoom in on the Amstelveen schools; the line still uses all schools
+  coord_cartesian(xlim = c(21, 35)) +
+  theme(strip.text.y = element_text(angle = 0)) #display text horizontally
+```
+```{r scatter-1f--plot, fig.width = 11, fig.height = 8}
+plot_1f <- ggplot(muni_1f, aes(x = schoolweging, y = percentage)) +
+  geom_hline(yintercept = 85, color = "grey30", linewidth = 0.8) +
+  geom_point(aes(fill = passed, size = n_students),
+             shape = 21, color = "white", stroke = 0.4, alpha = 0.75) +
+  geom_text_repel(data = filter(label_data, type == "Basic level (1F)"),
+                  aes(label = label), size = 2.8, lineheight = 0.9,
+                  nudge_x = 1, nudge_y = -1, hjust = 0, direction = "y",
+                  segment.color = NA, seed = 1) +
+  scale_fill_manual(values = c("Yes" = "#009E73", "No" = "#B2182B"),
+                    name = "Meets 85% norm") +
+  scale_size_area(max_size = 4, name = "Pupils tested") +
+  facet_wrap(~ subject) +
+  labs(title = "Basic level (1F): does the school meet the 85% norm?",
+       x = "School weighting", y = "% of pupils reaching 1F")
+plot_1f
+```
+```{r dot-1f-2s-plot, fig.width = 11, fig.height = 8}
+plot_target <- ggplot(
+  muni_target,
+  aes(x = diff, y = reorder(school_label, diff), color = diff)
+) +
+  geom_vline(xintercept = 0, color = "grey30", linetype = "dashed") +
+  geom_point(aes(size = n_students)) +
+  scale_size_area(max_size = 5, name = "Pupils tested") +
+  scale_color_gradient2(
+    low = "#B2182B", mid = "grey85", high = "#009E73", midpoint = 0,
+    limits = c(-30, 30), oob = scales::squish,
+    name = "Difference from\nexpected (%-points)"
+  ) +
+  facet_wrap(~ subject) +
+  labs(title = "Target level (1S / 2F): compared with schools with similar pupils",
+       x = "%-points above (+) or below (-) expected", y = NULL)
+plot_target
+```
+```{r scatter-dotplot, fig.width = 10, fig.height = 11}
+plot_grid(plot_1f, plot_target, ncol = 1, rel_heights = c(1, 1.4))
+```
+
+```{r dot-plot-one-unit-prep}
+# the four columns of the plot, in this order
+panel_levels <- c(
+  "Maths 1F\n(vs 85% norm)", "Maths 1S\n(vs expected)",
+  "Reading 1F\n(vs 85% norm)", "Reading 2F\n(vs expected)"
+)
+
+dot_data <- muni_data |>
+  mutate(
+    # which column the dot belongs in
+    panel = case_when(
+      level == "math_1F" ~ panel_levels[1],
+      level == "math_1S" ~ panel_levels[2],
+      level == "reading_1F" ~ panel_levels[3],
+      level == "reading_2F" ~ panel_levels[4]
+    ),
+    panel = factor(panel, levels = panel_levels),
+    # 1F: the real percentage; 1S / 2F: difference from expected
+    # distance from the benchmark: 85% for 1F, expected % for 1S / 2F
+    x_value = diff,
+    # school name with its school weighting, for the y-axis
+    school_label = paste0(
+      INSTELLINGSNAAM_VESTIGING, " (", round(schoolweging), ")"
+    )
+  ) |>
+  # sort schools by their average difference at the target levels
+  group_by(school_label) |>
+  mutate(order_value = mean(diff[type == "Target level (1S / 2F)"])) |>
+  ungroup()
+
+dots_1f <- filter(dot_data, type == "Basic level (1F)")
+dots_target <- filter(dot_data, type == "Target level (1S / 2F)")
+
+# reference lines: 85% norm in the 1F columns, 0 in the 1S / 2F columns
+lines_1f <- distinct(dots_1f, panel) |> mutate(x = 0)
+lines_target <- distinct(dots_target, panel) |> mutate(x = 0)
+```
+
+```{r dot-plot-one-unit, fig.width = 11, fig.height = 7}
+plot_dots <- ggplot(
+  mapping = aes(x = x_value, y = reorder(school_label, order_value))
+) +
+  geom_vline(data = lines_1f, aes(xintercept = x),
+             color = "grey30", linewidth = 0.7) +
+  geom_vline(data = lines_target, aes(xintercept = x),
+             color = "grey30", linewidth = 0.7, linetype = "dashed") +
+  geom_point(data = dots_1f, aes(fill = passed, size = n_students),
+             shape = 21, color = "white", stroke = 0.4) +
+  geom_point(data = dots_target, aes(color = diff, size = n_students)) +
+  scale_fill_manual(values = c("Yes" = "#009E73", "No" = "#B2182B"),
+                    name = "Meets 85% norm (1F)") +
+  scale_color_gradient2(
+    low = "#B2182B", mid = "grey85", high = "#009E73", midpoint = 0,
+    limits = c(-30, 30), oob = scales::squish,
+    name = "Difference from\nexpected (1S / 2F)"
+  ) +
+  scale_size_area(max_size = 5, name = "Pupils tested") +
+  guides(
+    fill = guide_legend(order = 1, override.aes = list(size = 4)),
+    color = guide_colorbar(order = 2),
+    size = guide_legend(order = 3)
+  ) +
+  facet_wrap(~ panel, nrow = 1, scales = "free_x") +
+  labs(x = NULL, y = NULL) +
+  theme(panel.spacing.x = unit(1.2, "lines"))
+
+plot_dots
+```
+```{r dot-plot-mixed-unit-prep}
+# the four columns of the plot, in this order
+panel_levels <- c(
+  "Maths 1F\n(% of pupils)", "Maths 1S\n(vs expected)",
+  "Reading 1F\n(% of pupils)", "Reading 2F\n(vs expected)"
+)
+
+dot_data <- muni_data |>
+  mutate(
+    # which column the dot belongs in
+    panel = case_when(
+      level == "math_1F" ~ panel_levels[1],
+      level == "math_1S" ~ panel_levels[2],
+      level == "reading_1F" ~ panel_levels[3],
+      level == "reading_2F" ~ panel_levels[4]
+    ),
+    panel = factor(panel, levels = panel_levels),
+    # 1F: the real percentage; 1S / 2F: difference from expected
+    x_value = if_else(type == "Basic level (1F)", percentage, diff),
+    # school name with its school weighting, for the y-axis
+    school_label = paste0(
+      INSTELLINGSNAAM_VESTIGING, " (", round(schoolweging), ")"
+    )
+  ) |>
+  # sort schools by their average difference at the target levels
+  group_by(school_label) |>
+  mutate(order_value = mean(diff[type == "Target level (1S / 2F)"])) |>
+  ungroup()
+
+dots_1f <- filter(dot_data, type == "Basic level (1F)")
+dots_target <- filter(dot_data, type == "Target level (1S / 2F)")
+
+# reference lines: 85% norm in the 1F columns, 0 in the 1S / 2F columns
+lines_1f <- distinct(dots_1f, panel) |> mutate(x = 85)
+lines_target <- distinct(dots_target, panel) |> mutate(x = 0)
+
+# same x-axis range for maths and reading: 80-100% for 1F, -15 to +35
+# for 1S / 2F (invisible points that only stretch the axes)
+axis_range <- dot_data |>
+  distinct(panel, type) |>
+  mutate(
+    xmin = if_else(type == "Basic level (1F)", 80, -15),
+    xmax = if_else(type == "Basic level (1F)", 100, 35)
+  ) |>
+  pivot_longer(c(xmin, xmax), values_to = "x_value")
+```
+
+```{r dot-plot-mixed-unit, fig.width = 11, fig.height = 7}
+plot_dots <- ggplot(
+  mapping = aes(x = x_value, y = reorder(school_label, order_value))
+) +
+  geom_vline(data = lines_1f, aes(xintercept = x),
+             color = "grey30", linewidth = 0.7) +
+  geom_vline(data = lines_target, aes(xintercept = x),
+             color = "grey30", linewidth = 0.7, linetype = "dashed") +
+  # invisible: only makes maths and reading share the same x-axis range
+  geom_blank(data = axis_range, aes(x = x_value), inherit.aes = FALSE) +
+  geom_point(data = dots_1f, aes(fill = passed, size = n_students),
+             shape = 21, color = "white", stroke = 0.4) +
+  geom_point(data = dots_target, aes(color = diff, size = n_students)) +
+  scale_fill_manual(values = c("Yes" = "#009E73", "No" = "#B2182B"),
+                    name = "Meets 85% norm (1F)") +
+  scale_color_gradient2(
+    low = "#B2182B", mid = "grey85", high = "#009E73", midpoint = 0,
+    limits = c(-30, 30), oob = scales::squish,
+    name = "Difference from\nexpected (1S / 2F)"
+  ) +
+  scale_size_area(max_size = 5, name = "Pupils tested") +
+  guides(
+    fill = guide_legend(order = 1, override.aes = list(size = 4)),
+    color = guide_colorbar(order = 2),
+    size = guide_legend(order = 3)
+  ) +
+  facet_wrap(~ panel, nrow = 1, scales = "free_x") +
+  labs(x = NULL, y = NULL) +
+  theme(panel.spacing.x = unit(1.2, "lines"))
+
+plot_dots
+```
+
