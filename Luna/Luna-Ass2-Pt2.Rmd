@@ -268,24 +268,42 @@ ggplot(mapping = aes(x = schoolweging, y = percentage)) +
   coord_cartesian(xlim = c(21, 35)) +
   theme(strip.text.y = element_text(angle = 0)) #display text horizontally
 ```
-```{r scatter-1f--plot, fig.width = 11, fig.height = 8}
+```{r scatter-1f--plot, fig.width = 9, fig.height = 6}
 plot_1f <- ggplot(muni_1f, aes(x = schoolweging, y = percentage)) +
-  geom_hline(yintercept = 85, color = "grey30", linewidth = 0.8) +
+  geom_hline(yintercept = 85, color = "black", linetype = "dashed") +
   geom_point(aes(fill = passed, size = n_students),
-             shape = 21, color = "white", stroke = 0.4, alpha = 0.75) +
+             shape = 21, color = "grey20", stroke = 0.3, alpha = 0.85) +
   geom_text_repel(data = filter(label_data, type == "Basic level (1F)"),
-                  aes(label = label), size = 2.8, lineheight = 0.9,
+                  aes(label = label), size = 3.5, lineheight = 0.9,
                   nudge_x = 1, nudge_y = -1, hjust = 0, direction = "y",
                   segment.color = NA, seed = 1) +
   scale_fill_manual(values = c("Yes" = "#009E73", "No" = "#B2182B"),
                     name = "Meets 85% norm") +
-  scale_size_area(max_size = 4, name = "Pupils tested") +
+  scale_size_area(max_size = 6, name = "Number of students") +
+  guides(fill = guide_legend(order = 1, override.aes = list(size = 5))) +
   facet_wrap(~ subject) +
-  labs(title = "Basic level (1F): does the school meet the 85% norm?",
-       x = "School weighting", y = "% of pupils reaching 1F")
+  labs(
+    title = paste(
+      "Almost all schools in Amstelveen reach the basic reference",
+      "level;\nonly two fall below the national signalling value."
+    ),
+    subtitle = paste(
+      "90% of schools (n = 18) meet the 85% norm in both subjects,",
+      "while 10% (n = 2) do not."
+    ),
+    x = "School weighting (higher = more disadvantaged pupils)",
+    y = "% of pupils reaching 1F"
+  ) +
+  theme_bw(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 18),
+    plot.subtitle = element_text(size = 14),
+    strip.text = element_text(size = 18),
+    panel.grid.minor = element_blank()
+  )
 plot_1f
 ```
-```{r dot-1f-2s-plot, fig.width = 11, fig.height = 8}
+```{r dot-1f-2s-plot, fig.width = 9, fig.height = 6}
 plot_target <- ggplot(
   muni_target,
   aes(x = diff, y = reorder(school_label, diff), color = diff)

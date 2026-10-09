@@ -1,0 +1,212 @@
+---
+title: "Luna-Ass2-Pt2"
+output: html_document
+date: "2026-10-08"
+---
+<!--
+HOW TO KNIT THIS FILE
+
+1. Open your group project in RStudio first (the `Project:` button in the
+   top right should show your repo name). Keep this file in `report/`.
+2. Click the `Knit` button at the top of this file (or press
+   Ctrl/Cmd + Shift + K). An .html file with the same name appears next to
+   this .Rmd in `report/`.
+3. Knitting starts from a clean R session: it only knows what is created
+   *in this file*. The setup chunk below sources scripts/00-packages.R and
+   scripts/01-get-data.R, so packages and data are always loaded. The first
+   knit downloads the data, so you need an internet connection.
+
+If knitting fails:
+- "could not find function": the package isn't loaded - add it to
+  scripts/00-packages.R.
+- "object not found": you created it in the Console, not in this file (or
+  in a script that this file doesn't source).
+- "cannot open file": check that the project is open, and use
+  here("folder", "file") for paths instead of typing them out.
+- Check that all code chunks have unique labels.
+- Google the error message you receive, as it often provides clues about
+  what went wrong.
+
+This comment does not show up in the knitted .html, so you can leave it here.
+-->
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# clear environment so knitting only depends on what's in this file
+rm(list = ls())
+
+# installs (if missing) and loads every package this project uses - add any
+# new packages to scripts/00-packages.R, not here
+source("../scripts/00-packages.R")
+
+# downloads the data into data/raw/ if you don't already have it, then loads
+# eindscores, referentieniveaus, schooladviezen and schoolweging into this
+source("../scripts/01-get-data.R")
+```
+
+
+```{r prepare-data}
+
+#Select relevant reference-level variables
+count_cols <- c("REKENEN_LAGER1F", "REKENEN_1F", "REKENEN_1S",
+                "LV_LAGER1F", "LV_1F", "LV_2F")
+
+# value for DUO's "<5" (1-4 pupils): the midpoint
+lt5_value <- 2.5
+
+replace_lt5 <- function(x) {
+  x <- as.character(x)
+  as.numeric(if_else(x == "<5", as.character(lt5_value), x))
+}
+
+#Convert columns to numeric, and turn values like <5 to NA
+#Clean reference-level counts
+ref_levels <- referentieniveaus |>
+  mutate(across(all_of(count_cols), replace_lt5)) |> #used to turn <5 into NA, now into 2.5 to prevent false 100$ scores? For small schools, this quite greatly influenced averages for example. 
+  group_by(INSTELLINGSCODE) |>
+  summarise(
+    GEMEENTENAAM = first(GEMEENTENAAM),
+    INSTELLINGSNAAM_VESTIGING = first(INSTELLINGSNAAM_VESTIGING),
+    across(all_of(count_cols), ~ sum(.x, na.rm = TRUE)), .groups = "drop") |>
+  mutate(
+    #total number of students for maths and for reading
+    rekenen_n = REKENEN_LAGER1F + REKENEN_1F + REKENEN_1S,
+    reading_n = LV_LAGER1F + LV_1F + LV_2F,
+    #percentage of students for each level
+    math_1F = 100 * (REKENEN_1F + REKENEN_1S) / rekenen_n,
+    math_1S = 100 * REKENEN_1S / rekenen_n,
+    reading_1F = 100 * (LV_1F + LV_2F) / reading_n,
+    reading_2F = 100 * LV_2F / reading_n
+    #DUO only count each pupil once, so to get the totals for reaching 1F in both reading and math, you must also count         the pupils that reached 1S and 2F
+  ) |>
+  filter(rekenen_n > 0, reading_n > 0)
+    #filter out schools where no pupils are counted for maths and reading, this might not occur for Amstelveen, but is          necessary for calculating averages.
+
+#calculate Schoolweging
+school_weights <- schoolweging |>
+  mutate(INSTELLINGSCODE = str_remove(OVT, "\\|.*$")) |>
+  group_by(INSTELLINGSCODE) |>
+  summarise(schoolweging = weighted.mean(schoolweging, w = aantal_leerlingen),
+    .groups = "drop")
+
+#Combine reference-level results with schoolweging
+school_data <- left_join(ref_levels, school_weights, by = "INSTELLINGSCODE")
+
+#Amstelveen Gemeente
+amstelveen_data <- filter(school_data, GEMEENTENAAM == "Amstelveen")
+
+#Final data
+amstelveen_data |>
+  select(INSTELLINGSNAAM_VESTIGING, schoolweging,
+          math_1F, math_1S, reading_1F, reading_2F)
+
+```
+
+```{r filter-converse}
+# all Dutch schools, one row per school per level
+final_data <- school_data |>
+  filter(!is.na(schoolweging)) |>
+  select(INSTELLINGSNAAM_VESTIGING, GEMEENTENAAM, schoolweging,
+         rekenen_n, reading_n,
+         math_1F, math_1S, reading_1F, reading_2F) |>
+  pivot_longer(
+    cols = c(math_1F, math_1S, reading_1F, reading_2F),
+    names_to = "level",
+    values_to = "percentage"
+  ) |>
+  mutate(
+    subject = if_else(str_starts(level, "math"), "Maths", "Reading"),
+    type = if_else(str_ends(level, "1F"),
+                   "Basic level (1F)",
+                   "Target level (1S / 2F)"),
+    n_students = if_else(subject == "Maths", rekenen_n, reading_n)
+  )
+
+#check if filter and conversion was succesful, are school with no schoolweging really filtered out and is nrow(final_data) x 4 times this amount
+count(final_data, level, subject, type)
+nrow(final_data)
+```
+
+```{r split-data-per-layer}
+# grey background: all Dutch schools
+# national <- final_data coded out, the grey dots were messy
+
+# the municipality we highlight
+municipality <- "Amstelveen"
+
+muni_data <- final_data |>
+  filter(GEMEENTENAAM == municipality) |>
+  mutate(passed = if_else(percentage >= 85, "Yes", "No"))
+
+# Amstelveen dots, split per row of the plot (each gets its own colours)
+muni_1f <- filter(muni_data, type == "Basic level (1F)")
+muni_target <- filter(muni_data, type == "Target level (1S / 2F)")
+
+# regression line: all Dutch schools, only the target levels
+national_target <- filter(final_data, type == "Target level (1S / 2F)")
+
+# 85% norm line: one row per 1F panel
+norm_1f <- distinct(muni_1f, type, subject)
+```
+
+```{r names-in-plot}
+# names in the plot: all schools in the 1S / 2F panels, and only the
+# schools below the 85% norm in the 1F panels
+label_data <- muni_data |>
+  filter(
+    type == "Target level (1S / 2F)" |
+      (type == "Basic level (1F)" & passed == "No")
+  ) |>
+  mutate(label = if_else(
+    type == "Basic level (1F)",
+    paste0(INSTELLINGSNAAM_VESTIGING, "\n", round(percentage, 2), "%"),
+    INSTELLINGSNAAM_VESTIGING
+  ))
+
+# school name with its school weighting, for the y-axis
+muni_target <- muni_target |>
+  mutate(school_label = paste0(
+    INSTELLINGSNAAM_VESTIGING, " (SW ", round(schoolweging), ")"
+  ))
+```
+
+```{r scatter-1f--plot, fig.width = 9, fig.height = 6}
+plot_1f <- ggplot(muni_1f, aes(x = schoolweging, y = percentage)) +
+  geom_hline(yintercept = 85, color = "black", linetype = "dashed") +
+  geom_point(aes(fill = passed, size = n_students),
+             shape = 21, color = "grey20", stroke = 0.3, alpha = 0.85) +
+  geom_text_repel(data = filter(label_data, type == "Basic level (1F)"),
+                  aes(label = label), size = 3.5, lineheight = 0.9,
+                  nudge_x = 1, nudge_y = -1, hjust = 0, direction = "y",
+                  segment.color = NA, seed = 1) +
+  scale_fill_manual(values = c("Yes" = "#009E73", "No" = "#B2182B"),
+                    name = "Meets 85% norm") +
+  scale_size_area(max_size = 6, name = "Number of students") +
+  guides(fill = guide_legend(order = 1, override.aes = list(size = 5))) +
+  facet_wrap(~ subject) +
+  labs(
+    title = paste(
+      "Almost all schools in Amstelveen reach the basic reference",
+      "level;\nonly two fall below the national signalling value."
+    ),
+    subtitle = paste(
+      "90% of schools (n = 18) meet the 85% norm in both subjects,",
+      "while 10% (n = 2) do not."
+    ),
+    x = "School weighting (higher = more disadvantaged pupils)",
+    y = "% of pupils reaching 1F"
+  ) +
+  theme_bw(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 18),
+    plot.subtitle = element_text(size = 14),
+    strip.text = element_text(size = 18),
+    panel.grid.minor = element_blank()
+  )
+plot_1f
+```
+
+This is the code to combine the plots
+```{r scatter-dotplot, fig.width = 10, fig.height = 11}
+#plot_grid(plot_1f, your_plotname, ncol = 1, rel_heights = c(1, 1.4))
+```
