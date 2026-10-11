@@ -1,7 +1,7 @@
 ---
-title: "BDS Toolbox Assignment 2"
-author: "Group 6"
-date: "2026-10-11"
+title: "Almost all Amstelveen schools reach the basic reference level in maths and reading, but nine fall behind at the advanced level"
+subtitle: "Reading and maths results of 20 primary schools in 2024-2025, compared with national predictions and with similar schools"
+author: "Group 6: Kassandra Vroulli, Luna van Wonderen, Míra Sopuch"
 output: 
   html_document:
     code_folding: hide
@@ -10,23 +10,21 @@ output:
 
 ## **Research Question**
 
-For the benefit of the municipality officer of Amstelveen, the Netherlands this report answers the question: **which primary schools in Amstelveen are on track for reading and maths?**
+For the benefit of the municipality officer of Amstelveen, the Netherlands, this report aims to answer the following question: **which primary schools in Amstelveen are on track for reading and maths?**
 
-To be able to answer this question, we must first define what ‘on track’ actually means. To do this, we examine the information the municipality officer wishes to gain from the visualization, inspect the data and use additional information provided by the Inspectorate of Education (Inspectie van het Onderwijs), the government body that supervises the quality of Dutch schools.
+The primary objective of a municipality officer when looking at the final visualization is to identify which schools need additional help. Therefore, in this report, it is assumed that there is a difference in the educational interventions tailored to maths and reading, so for each school, we report whether they are on track in each subject separately, rather than reporting a combined evaluation of both subjects. 
 
-The most important message the municipality officer must receive from looking at the visualization, is which schools need help, in whatever shape or form. Therefore, in this report, we are assuming that there is a difference in the educational interventions tailored to maths and reading, so for each school, we will report whether they are on track for reading and maths separately, rather tha of n reporting a combined number of both subjects. 
+We use DUO’s data on reference levels for group 8 pupils in the 2024–2025 school year. Reference levels describe what pupils should master at the end of primary school. For both subjects, there is a basic level (1F), which nearly every pupil should reach, and an advanced level: 1S for maths and 2F for reading. Pupils below the basic level are classified as “below 1F”.
 
-We use DUO’s data on reference levels for group 8 pupils in the 2024–2025 school year. Reference levels describe what pupils should master at the end of primary school. For both subjects, there is a basic level (1F), which nearly every pupil should reach, and a higher target level: 1S for maths and 2F for reading. Pupils below the basic level are classified as “below 1F”.
-
-DUO counts each pupil only once, at the highest level they reached. A pupil at 1S has therefore also reached 1F but only appears in the 1S column. To calculate the share of pupils reaching the target levels (1S and 2F), we add up the pupils at 1F and those at the target level. 
+DUO counts each pupil only once, at the highest level they reached. A pupil at 1S has therefore also reached 1F but only appears in the 1S column. To calculate the share of pupils reaching the advanced levels (1S and 2F), we add up the pupils at 1F and those at the advanced level. 
 
 To decide when a school is “on track”, we follow the Inspectorate of Education. It judges learning outcomes on two indicators (Staatssecretaris van Onderwijs, Cultuur en Wetenschap, 2026):
 
-- **Basic level:** at least 85% of pupils should reach 1F. This norm is the same for every school.
+- **Basic level:** at least 85% of pupils should reach 1F. This threshold is the same for every school.
 
-- **Target level:** the expected share depends on the school weighting (schoolweging), a measure of the pupil population. A higher weighting means more pupils come from disadvantaged backgrounds, who on average score lower.
+- **Advanced level:** the expected share depends on the school weighting (schoolweging), a measure of the pupil population. A higher weighting means more pupils come from disadvantaged backgrounds.
 
-We therefore call a school **on track** if it meets the 85% norm at the basic level and scores at or above the expected percentage for schools with a similar school weighting at the target level. For the target level, we use the average of comparable Dutch schools rather than the Inspectorate’s own signalling value. That value is set so that only about 10% of schools fall below it, which makes it a minimum standard rather than a measure of being on track.
+We therefore call a school **on track** if it meets the 85% norm at the basic level and scores at or above the expected percentage for schools with a similar school weighting at the advanced level. For the advanced level, we use the regression-predicted percentage of comparable Dutch schools rather than the Inspectorate’s own signalling value. This decision was made because the Inspectorate's value is set so that only around 10% of schools fall below it, which makes it a minimum standard rather than a measure of being on track.
 
 ## **Exploratory Process**
 
@@ -204,8 +202,7 @@ plot1 <- ggplot(
 
 plot1
 ```
-
-Plot 1 orders schools by school weighting, from most to least advantaged, and uses a dot plot to show the percentage of pupils reaching the higher level. The national average serves as a benchmark to assess school performance against. Maths and reading are coloured differently and plotted on the same axis to emphasize the difference in national benchmark percentages between them. What we like from this plot is the list of school names, which addresses the research question directly. What we don’t like is the overlap between maths and reading dots, which makes it difficult to distinguish which schools meet which benchmarks. What we question is using the national average as the threshold, as it overlooks school weighting differences.
+Figure 1 orders schools by school weighting, from most to least advantaged, and uses a dot plot to show the percentage of pupils reaching the higher level. The national average serves as a benchmark to assess school performance against. Maths and reading are coloured differently and plotted on the same axis to emphasize the difference in national benchmark percentages between them. What we like from this plot is the list of school names, which addresses the research question directly. The overlap between maths and reading dots, however, makes it difficult to distinguish which schools meet which benchmarks. This made us question using the national average as the threshold, as it overlooks school weighting differences.
 
 ```{r, warning=FALSE, message=FALSE, fig.align='center'}
 # CODE FOR EXPLORATORY PLOT 2
@@ -246,8 +243,7 @@ scatter_interactive <- ggplot(
 
 ggplotly(scatter_interactive, tooltip = "text")
 ```
-
-Plot 2 interactively shows the percentage of students reaching advanced level against school weighting. Two regression lines serve as benchmarks for each subject. A different colour is used for each subject and again they were plotted on the same axis, therefore causing some overlap. Tooltips show the school name, weighting and percentage of attainment. From this plot we like the regression line, as it takes school weighting into account, and we believe is a fairer benchmark for each school. We don’t like the overlap of math and reading dots. We questione whether an interactive plot is too exploratory for the final visualization, as the main findings should be immediately clear.
+Figure 2 interactively shows the percentage of students reaching advanced level against school weighting. A regression line was fitted for each subject. While different colours were used per subject, plotting them on the same axis caused some overlap. Tooltips show the school name, weighting and percentage of attainment. We found the regression line useful on this plot, as it takes school weighting into account, which we believed was a fairer reference for each school. However, we wondered whether an interactive plot was too exploratory for the final visualization, as the main findings should immediately be clear for a municipality officer.
 
 ```{r, fig.align='center'}
 # CODE FOR EXPLORATORY PLOT 3
@@ -303,15 +299,13 @@ plot3 <- ggplot(data = amstelveen_data,
 
 plot3
 ```
+Figure 3 shows the percentages of pupils reaching advanced level in maths and reading. The national averages are the benchmarks, forming two lines that intersect. School names are placed next to the dots, making it easy to identify each school’s performance, and colours distinguish schools exceeding both averages (green), only one (orange), or neither (red). This layout highlights which schools need further intervention in which subject. We thought the colour-coding of the dots worked well on this plot, because it makes clear which schools pass which reference level. However, the overlap of school labels at the higher end of the plot was not ideal, and we again questioned whether the national average was a fair benchmark to choose.
 
-Plot 3 shows the percentages of pupils reaching advance level maths against reading. The national averages are the benchmarks, forming two lines that intersect. School names are placed next to the dots, making it easy to identify each school’s performance, and colours distinguish schools exceeding both averages (green), only one (orange), or neither (red). This layout highlights which schools need further intervention and in which subject. From this plot we like the colour-coding of the dots, which makes it clear to see which schools pass which subject benchmark. We don’t like the overlap of school labels at the higher end of the plot. We question again the use of the national average as a fair benchmark.
+In our exploratory process, we also examined why some schools seemed to reach 100% attainment. Since DUO suppresses small student counts as "<5", these values ended up being treated as missing in our data pipeline, causing the computed percentage to incorrectly reach 100%. To avoid this and achieve more realistic values, we decided to use 2.5 instead of 0 or 5.
 
-We also examined why some schools seemed to reach 100% attainment. For suppressed values of school size, we decided to use 2.5 instead of 0 or 5, and to incorporate the school size in the plot by varying dot sizes.
-The above explorations informed out final design choices, including adding school labels only for the ‘red’ schools so not to overwhelm the plot, splitting the plot into two panels, using regression lines instead of the national averages as benchmarks, and using colour and dot size to represent differences in school performance and size.
+Overall, the exploratory visualizations informed our final design choices, including adding school labels only for the ‘red’ schools so as not to overcrowd the plot, splitting the plot into two panels, using regression lines instead of the national averages as benchmarks, and using colour and dot size to represent differences in school performance and size.
 
 ## **Final visualization**
-
-Our final explanatory visualization is shown Figure 4. It addresses our research question in two steps: first we check whether schools meet the basic level and then we examine if they reach the expected advanced level given their pupil population.
 
 ```{r, warning=FALSE}
 # FINAL INTERACTIVE VISUALIZATION
@@ -494,32 +488,30 @@ final_interactive <- girafe(
 
 final_interactive
 ```
+Our final explanatory visualization is shown Figure 4. It addresses our research question in two steps: it checks whether at least 85% of pupils in each school meets the basic level, and it compares school performance on the advanced level with the percentage predicted by a regression fitted on data from all Dutch primary schools, accounting for school weighting and number of pupils.
 
+### **Why this design**
 
-Our final, explanatory visualization is Figure 2. It answers our research question in two steps: first we look at whether each school reaches the basic level and after that we examine if it reaches the expected advanced level given its pupil population.
+After the exploratory phase we concluded that both levels need different plots. At the basic level, one threshold applies to every school, so a scatter plot with a single benchmark directly identifies those below it. At the advanced level, national predictions vary by school, so we instead use a ranked dot plot showing each school’s difference from the corresponding prediction which keeps all school names readable and puts the schools needing attention at the bottom.
+
+### **Robustness**
+
+DUO reports counts of one to four pupils as “<5”. We replaced these with 2.5 and repeated the analysis with 1 and 4. De Cirkel falls below the 1F norm in every analysis, and eight of the nine schools initially below the national prediction remain below it on the advanced level. The few schools whose classifications changed across analyses are marked with an asterisk. Because one pupil can shift a small school’s percentage by several points, schools with only a few pupils should be interpreted with caution.
 
 ### **Basic level (1F)**
 
-The top two panels show the relationship between school weighting and the percentage of pupils reaching the basic level (1F) in maths and reading in Amstelveen primary schools. We show the two subjects in separate panels side by side, to make differences between them easy to identify. The horizontal line is the Inspectorate’s 85% signalling value, which applies to all schools. Schools that meet this threshold are shown as green dots, while schools below it as magenta. The colour scheme is colour-blind friendly, and dot size represents the number of pupils tested. To avoid clutter, while keeping the main findings clear at a glance, we only label the two schools below the 85% threshold. Interactive tooltips then provide the school name, attainment percentage, difference from the 85% benchmark, school weighting, and number of pupils tested. Selecting a dot also highlights the corresponding school in the adjacent panel.
+The top two panels show the relationship between school weighting and the percentage of pupils reaching the basic level (1F) in maths and reading in Amstelveen primary schools. The plot displays the two subjects in separate panels side by side, to make differences between them easy to identify. The horizontal line is the Inspectorate’s 85% signalling value, which applies to all schools. Schools that meet this threshold are shown as green dots, while schools below it as magenta. The colour scheme is colour-blind friendly, and dot size represents the number of pupils tested. To avoid clutter, while keeping the main findings clear at a glance, we only label the two schools below the 85% threshold. Interactive tooltips then provide the school name, attainment percentage, difference from the 85% benchmark, school weighting, and number of pupils tested. Selecting a dot also highlights the corresponding school in the adjacent panel.
 
 Almost all schools reach the basic level: 18 of 20 meet the norm in both subjects. Only De Akker (84.85%) and De Cirkel (81.82%) fall below it, both in maths, while every school is above 85% in reading. At the basic level, maths is therefore the bigger concern, and these two schools need further attention regarding that subject.
 
 
-### **Target level (1S / 2F)**
+### **Advanced level (1S/2F)**
 
-Since nearly all schools reach the basic level, it reveals little about differences in how well they perform. The bottom panels therefore show performance at target level (1S for maths, 2F for reading), where schools differ more. To account for differences in pupil’s backgrounds, we decided against using one single national benchmark. Instead, we compare each school with the expected performance of Dutch schools with similar school weighting, estimated using a regression weighted by pupil numbers.
+Since nearly all schools reach the basic level, it reveals little about differences in how well they perform. The bottom panels therefore show performance at advanced level (1S for maths, 2F for reading), where schools differ more. To account for differences in pupils' backgrounds, we decided against using a single national benchmark. Instead, we compare each school with the expected performance of Dutch schools with similar school weighting, estimated using a regression weighted by the number of students tested per school.
 
-Each row represents one school. The x-axis shows the percentage-points difference from expectation, with the dashed line at 0 representing the regression-predicted level. Schools are ranked by their average difference across both subjects, from the strongest schools at the top to those needing attention at the bottom. Colours range from magenta to green, with full intensity at ±10 percentage points.
+Each row represents one school. The x-axis shows the percentage-points difference from expectation, with the dashed line at zero representing the regression-predicted level. Schools are ranked by their average difference across both subjects, from the strongest schools at the top to those needing attention at the bottom. Colours range from magenta to green, with full intensity at ±10 percentage points.
 
-Eleven schools (55%) meet or exceed expectations in both subjects. Nine (45%) fall below in at least one, of which three (15%) fall below in both. Most schools score well above expectation in maths, while reading results lie closer to the expected level. Two schools stand out at both levels: De Cirkel is below the 1F norm in maths and below expected in both subjects at the target level. De Akker is below the 1F norm and well below expected in maths, although it scores above expected in reading. This suggests that support should be tailored to each school’s specific needs rather than focusing on performance alone.
-
-### **Why this design.**
-
-After the exploratory phase we concluded that both levels need different plots. At the basic level, one norm applies to every school, so a scatterplot with a single benchmark directly identifies those below it. At the advanced level, expected scores vary by school, so we instead use a ranked dot plot showing each school’s difference from its expected score which keeps all school names readable and puts the schools needing attention at the bottom.
-
-### **Robustness.**
-
-DUO reports counts of 1 - 4 pupils as “<5”. We replaced these with 2.5 and repeated the analysis with 1 and 4. De Cirkel falls below the 1F norm in every version, and eight of the nine schools below expected remain in the advanced plot below. The few borderline schools that change are marked with an asterisk. Because one pupil can shift a small school’s percentage by several points, schools with little pupils should be interpreted with caution.
+Eleven schools (55%) meet or exceed expectations in both subjects. Nine (45%) fall below in at least one, of which three (15%) fall below in both. Most schools score well above expectation in maths, while reading results lie closer to the expected level. Two schools stand out at both levels: De Cirkel is below the 1F norm in maths and below expected in both subjects at the advanced level. De Akker is below the 1F norm and well below expected in maths, although it scores above expected in reading. This suggests that support should be tailored to each school’s specific needs rather than focusing on performance alone.
 
 ## **AI disclosure**
 
@@ -531,6 +523,6 @@ We learned that AI was useful for speeding up tasks such as searching for specif
 
 The models used were the ones available in UvA AI, primarily GPT-5 and Claude Sonnet. We provided snippets of our own code and images of our current graphs for context. We did not use AI in the writing process.
 
-## References
+## **References**
 
-Staatssecretaris van Onderwijs, Cultuur en Wetenschap. (2026, 21 juli). Regeling van de Staatssecretaris van Onderwijs, Cultuur en Wetenschap van 10 juli 2026, nr. OVO/63600598, tot wijziging van de Regeling leerresultaten PO 2020 in verband met de actualisering van de signaleringswaarden (Staatscourant 2026, nr. 26023). https://zoek.officielebekendmakingen.nl/stcrt-2026-26023.pdf
+Staatssecretaris van Onderwijs, Cultuur en Wetenschap. (2026, 21 juli). *Regeling van de Staatssecretaris van Onderwijs, Cultuur en Wetenschap van 10 juli 2026, nr. OVO/63600598, tot wijziging van de Regeling leerresultaten PO 2020 in verband met de actualisering van de signaleringswaarden* (Staatscourant 2026, nr. 26023). https://zoek.officielebekendmakingen.nl/stcrt-2026-26023.pdf
