@@ -48,24 +48,24 @@ source("../scripts/01-get-data.R")
 # Lato font for all plots 
 font_add_google("Lato", "lato")
 showtext_auto()
-showtext_opts(dpi = 300)
 
 # shared look for all plots in the report 
 theme_report <- theme_bw(base_size = 12, base_family = "lato") +
   theme(
-    plot.title.position = "plot",
+    plot.title.position = "panel",
+    plot.caption.position = "panel",
     plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
     plot.subtitle = element_text(size = 13, hjust = 0.5,
                                  margin = margin(b = 10)),
+    plot.caption = element_text(size = 9, colour = "grey40", hjust = 0),
     strip.text = element_text(size = 14, colour = "black", face = "bold"),
+    strip.background = element_blank(),
     axis.text.y = element_text(size = 11),
     axis.title.x = element_text(size = 12, margin = margin(t = 8)),
     panel.grid.minor = element_blank(),
     legend.title = element_text(size = 12),
     legend.text = element_text(size = 11),
-    legend.key = element_rect(fill = NA, colour = NA),
-    plot.caption = element_text(size = 9, colour = "grey40", hjust = 0),
-    strip.background = element_blank()
+    legend.key = element_rect(fill = NA, colour = NA)
   )
 ```
 
@@ -76,7 +76,7 @@ count_cols <- c("REKENEN_LAGER1F", "REKENEN_1F", "REKENEN_1S",
                 "LV_LAGER1F", "LV_1F", "LV_2F")
 
 # value for DUO's "<5" (1-4 pupils): the midpoint
-lt5_value <- 4
+lt5_value <- 2.5
 
 replace_lt5 <- function(x) {
   x <- as.character(x)
@@ -232,7 +232,7 @@ muni_target <- muni_target |>
   ))
 ```
 
-```{r scatter-1f-final, fig.width = 11, fig.height = 7}
+```{r scatter-1f-final, fig.width = 11, fig.height = 7, warning = FALSE}
 plot_1f <- ggplot(muni_1f, aes(x = schoolweging, y = percentage)) +
   # the Inspectorate's fixed 85% norm
   geom_hline(yintercept = 85, color = "grey30", linewidth = 1) +
@@ -301,8 +301,8 @@ plot_1s_2f <- ggplot(
   ))) +
   labs(
     title = paste(
-      "Most schools in Amstelveen are on track at the advanced reference level;",
-      "\nnine fall behind the expected score in at least one subject."
+      "Most schools in Amstelveen are on track at the advanced reference",
+      "level;\nnine fall behind the expected score in at least one subject."
     ),
     subtitle = paste(
       "55% of schools (n = 11) score at or above expected in both",
@@ -311,19 +311,21 @@ plot_1s_2f <- ggplot(
     x = "Percentage points above (+) or below (-) expected",
     y = NULL,
     caption = paste0(
-      "Dashed Line: expected share of pupils reaching the advanced reference level ",
-      "for schools with a similar school weighting, based on a\n",
-      "regression on all 5,771 Dutch primary schools, weighted by number ",
-      "of pupils. Schools are ordered by their average difference\n",
-      "across maths and reading. * Classification changes depending on ",
-      "how DUO's '<5' counts are handled (tested with 1, 2.5 and 4).\n",
-      "In this plot '<5' counts are replaced by 2.5. Source: DUO."
+      "Dashed line: expected share of pupils reaching the advanced ",
+      "reference level for schools with a similar school weighting,\n",
+      "based on a regression on all 5,771 Dutch primary schools, weighted ",
+      "by number of pupils. Schools are ordered by their average\n",
+      "difference across maths and reading. * Classification changes ",
+      "depending on how DUO's '<5' counts are handled (tested with\n",
+      "1, 2.5 and 4). In this plot '<5' counts are replaced by 2.5. ",
+      "Source: DUO."
     )
   ) +
   theme_report
 
 plot_1s_2f
 ```
-```{r scatter-dotplot, fig.width = 10, fig.height = 15}
-plot_grid(plot_1f, plot_1s_2f, ncol = 1, rel_heights = c(1, 1.4))
+```{r scatter-dotplot, fig.width = 10, fig.height = 15, warning = FALSE}
+plot_grid(plot_1f, plot_1s_2f, ncol = 1, rel_heights = c(1, 1.4),
+          align = "v", axis = "lr")
 ```
