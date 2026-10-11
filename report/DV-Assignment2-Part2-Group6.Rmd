@@ -355,7 +355,8 @@ muni_1f <- muni_data |>
     tooltip = paste0(
       "<strong>", INSTELLINGSNAAM_VESTIGING, "</strong><br>",
       round(percentage, 2), "% reaching basic level (1F)<br>",
-      "Difference from 85% benchmark: ", round(percentage - 85, 2), "%<br>",
+      "Difference from 85% benchmark: ", round(percentage - 85, 2),
+      " percentage points<br>",
       "School weighting: ", schoolweging, "<br>",
       "Pupils tested: ", n_students
     )
@@ -367,8 +368,9 @@ muni_target <- muni_data |>
     tooltip = paste0(
       "<strong>", INSTELLINGSNAAM_VESTIGING, "</strong><br>",
       round(percentage, 2), "% reaching advanced level<br>",
-      "National prediction: ", round(expected, 2), "<br>",
-      "Difference from national prediction: ", round(diff, 2), "%<br>",
+      "National prediction: ", round(expected, 2), "%<br>",
+      "Difference from national prediction: ", round(diff, 2),
+      " percentage points<br>",
       "School weighting: ", round(schoolweging, 2), "<br>",
       "Pupils tested: ", n_students
     )
@@ -511,7 +513,7 @@ plot_target <- ggplot(muni_target, aes(diff, reorder(school_label, diff))) +
     limits = c(-10, 10), oob = scales::squish,
     breaks = c(-10, -5, 0, 5, 10),
     labels = c("-10 or less", "-5", "0", "+5", "+10 or more"),
-    name = "Difference from\nexpected(%)"
+    name = "Difference from\nprediction\n(percentage points)"
   ) +
   scale_size_area(
     max_size = 6, breaks = c(25, 50, 75, 100),
@@ -533,7 +535,7 @@ plot_target <- ggplot(muni_target, aes(diff, reorder(school_label, diff))) +
       "55% of schools (n = 11) score at or above the national prediction ",
       "in both subjects, while 45% (n = 9) do not."
     ),
-    x = "% below/above the national prediction",
+    x = "Percentage points below (-) or above (+) the national prediction",
     y = NULL,
     caption = paste0(
       "Dashed line: predicted percentage of pupils reaching the advanced ",
