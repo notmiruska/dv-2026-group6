@@ -31,7 +31,7 @@ This comment does not show up in the knitted .html, so you can leave it here.
 -->
 
 ```{r setup, include = FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, fig.showtext = TRUE)
 # clear environment so knitting only depends on what's in this file
 rm(list = ls())
 
@@ -57,13 +57,15 @@ theme_report <- theme_bw(base_size = 12, base_family = "lato") +
     plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
     plot.subtitle = element_text(size = 13, hjust = 0.5,
                                  margin = margin(b = 10)),
-    strip.text = element_text(size = 14, colour = "black"),
+    strip.text = element_text(size = 14, colour = "black", face = "bold"),
     axis.text.y = element_text(size = 11),
     axis.title.x = element_text(size = 12, margin = margin(t = 8)),
     panel.grid.minor = element_blank(),
     legend.title = element_text(size = 12),
     legend.text = element_text(size = 11),
-    legend.key = element_rect(fill = NA, colour = NA)
+    legend.key = element_rect(fill = NA, colour = NA),
+    plot.caption = element_text(size = 9, colour = "grey40", hjust = 0),
+    strip.background = element_blank()
   )
 ```
 
@@ -74,7 +76,7 @@ count_cols <- c("REKENEN_LAGER1F", "REKENEN_1F", "REKENEN_1S",
                 "LV_LAGER1F", "LV_1F", "LV_2F")
 
 # value for DUO's "<5" (1-4 pupils): the midpoint
-lt5_value <- 2.5
+lt5_value <- 4
 
 replace_lt5 <- function(x) {
   x <- as.character(x)
@@ -207,17 +209,26 @@ muni_target <- filter(muni_data, type == "Target level (1S / 2F)")
 ```
 
 ```{r names-in-plot}
-# names in the 1F plot: only the schools below the 85% norm
+# names in the 1F plot: only the schools below the 85% norm;
+# De Akker gets an asterisk, because whether it meets the norm depends
+# on the "<5" choice (robustness check with 1, 2.5 and 4)
 label_data <- muni_data |>
   filter(type == "Basic level (1F)", passed == "No") |>
   mutate(label = paste0(
-    INSTELLINGSNAAM_VESTIGING, "\n", round(percentage, 2), "%"
+    INSTELLINGSNAAM_VESTIGING,
+    if_else(INSTELLINGSNAAM_VESTIGING == "De Akker", "*", ""),
+    "\n", round(percentage, 2), "%"
   ))
 
-# school name with its school weighting, for the y-axis
+# schools whose classification at the advanced level depends on the
+# "<5" choice (robustness check with 1, 2.5 and 4)
+sensitive_target <- c("Elif Amstelveen", "Roelof Venemaschool", "Het Palet")
+
+# school name for the y-axis; an asterisk marks the schools listed above
 muni_target <- muni_target |>
   mutate(school_label = paste0(
-    INSTELLINGSNAAM_VESTIGING, " (SW ", round(schoolweging), ")"
+    INSTELLINGSNAAM_VESTIGING,
+    if_else(INSTELLINGSNAAM_VESTIGING %in% sensitive_target, "*", "")
   ))
 ```
 
@@ -255,7 +266,14 @@ plot_1f <- ggplot(muni_1f, aes(x = schoolweging, y = percentage)) +
       "while 10% (n = 2) do not."
     ),
     x = "School weighting (higher = more disadvantaged pupils)",
-    y = "% of pupils reaching 1F"
+    y = "% of pupils reaching 1F",
+    caption = paste0(
+      "Each dot is one Amstelveen primary school (n = 20). Line: the ",
+      "Inspectorate's signalling value of 85%, the same for all schools\n",
+      "(Staatscourant 2026, nr. 26023). * Classification changes ",
+      "depending on how DUO's '<5' counts are handled (tested with 1, 2.5\n",
+      "and 4). In this plot '<5' counts are replaced by 2.5. Source: DUO."
+    )
   ) +
   theme_report
 plot_1f
@@ -291,7 +309,16 @@ plot_1s_2f <- ggplot(
       "subjects, while 45% (n = 9) do not."
     ),
     x = "Percentage points above (+) or below (-) expected",
-    y = NULL
+    y = NULL,
+    caption = paste0(
+      "Dashed Line: expected share of pupils reaching the advanced reference level ",
+      "for schools with a similar school weighting, based on a\n",
+      "regression on all 5,771 Dutch primary schools, weighted by number ",
+      "of pupils. Schools are ordered by their average difference\n",
+      "across maths and reading. * Classification changes depending on ",
+      "how DUO's '<5' counts are handled (tested with 1, 2.5 and 4).\n",
+      "In this plot '<5' counts are replaced by 2.5. Source: DUO."
+    )
   ) +
   theme_report
 
