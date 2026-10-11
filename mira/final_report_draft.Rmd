@@ -471,7 +471,7 @@ plot_target <- ggplot(muni_target, aes(diff, reorder(school_label, diff))) +
   theme_report
 
 combined_plot <- wrap_plots(
-  plot_1f,
+  free(plot_1f, side = "l"),
   plot_target,
   ncol = 1,
   heights = c(7,9)
