@@ -54,8 +54,9 @@ showtext_opts(dpi = 300)
 theme_report <- theme_bw(base_size = 12, base_family = "lato") +
   theme(
     plot.title.position = "plot",
-    plot.title = element_text(size = 16, face = "bold"),
-    plot.subtitle = element_text(size = 13, margin = margin(b = 10)),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 13, hjust = 0.5,
+                                 margin = margin(b = 10)),
     strip.text = element_text(size = 14, colour = "black"),
     axis.text.y = element_text(size = 11),
     axis.title.x = element_text(size = 12, margin = margin(t = 8)),
@@ -224,15 +225,10 @@ muni_target <- muni_target |>
 plot_1f <- ggplot(muni_1f, aes(x = schoolweging, y = percentage)) +
   # the Inspectorate's fixed 85% norm
   geom_hline(yintercept = 85, color = "grey30", linewidth = 1) +
-  # dot = meets the norm, cross = below it (shape and colour, so it also
-  # works for colour-blind readers and in black and white)
-  # schools that meet the norm: dot, normal stroke
-  geom_point(data = filter(muni_1f, passed == "Yes"),
-             aes(color = passed, shape = passed, size = n_students)) +
-  # schools below the norm: cross with thick lines, so they stand out
-  geom_point(data = filter(muni_1f, passed == "No"),
-             aes(color = passed, shape = passed, size = n_students),
-             stroke = 3, show.legend = c(size = FALSE)) +
+  # dot = meets the norm, cross = below it, colours also
+  # work for colour-blind readers
+  # green = meets the 85% norm, magenta = below it
+  geom_point(aes(color = passed, size = n_students)) +
   # names of the schools below the norm: right of the dot, below the line
   geom_text_repel(data = filter(label_data, type == "Basic level (1F)"),
                   aes(label = label), size = 3.5, lineheight = 0.9,
@@ -241,15 +237,14 @@ plot_1f <- ggplot(muni_1f, aes(x = schoolweging, y = percentage)) +
                   segment.color = NA, seed = 1) +
   scale_color_manual(values = c("Yes" = "#26AB6F", "No" = "#AB2662"),
                      name = "Meets 85% norm") +
-  scale_shape_manual(values = c("Yes" = 16, "No" = 4),
-                     name = "Meets 85% norm") +
   scale_size_area(max_size = 5, name = "Pupils tested") +
   guides(
     color = guide_legend(order = 1, override.aes = list(size = 4)),
-    shape = guide_legend(order = 1),
     size = guide_legend(order = 2)
   ) +
-  facet_wrap(~ subject) +
+  facet_wrap(~ subject, labeller = as_labeller(c(
+    Maths = "Maths (1F)", Reading = "Reading (1F)"
+  ))) +
   labs(
     title = paste(
       "Almost all schools in Amstelveen reach the basic reference",
@@ -262,12 +257,12 @@ plot_1f <- ggplot(muni_1f, aes(x = schoolweging, y = percentage)) +
     x = "School weighting (higher = more disadvantaged pupils)",
     y = "% of pupils reaching 1F"
   ) +
-    theme_report
+  theme_report
 plot_1f
 ```
 
 ```{r dot-1f-2s-plot, fig.width = 9, fig.height = 6}
-plot_target <- ggplot(
+plot_1s_2f <- ggplot(
   muni_target,
   aes(x = diff, y = reorder(school_label, diff), colour = diff)
 ) +
@@ -283,10 +278,12 @@ plot_target <- ggplot(
     name = "Difference from\nexpected\n(percentage points)"
   ) +
   scale_size_area(max_size = 5, name = "Pupils tested") +
-  facet_wrap(~ subject) +
+  facet_wrap(~ subject, labeller = as_labeller(c(
+    Maths = "Maths (1S)", Reading = "Reading (2F)"
+  ))) +
   labs(
     title = paste(
-      "Most schools in Amstelveen are on track at the target level;",
+      "Most schools in Amstelveen are on track at the advanced reference level;",
       "\nnine fall behind the expected score in at least one subject."
     ),
     subtitle = paste(
@@ -298,8 +295,8 @@ plot_target <- ggplot(
   ) +
   theme_report
 
-plot_target
+plot_1s_2f
 ```
-```{r scatter-dotplot, fig.width = 10, fig.height = 11}
-plot_grid(plot_1f, plot_target, ncol = 1, rel_heights = c(1, 1.4))
+```{r scatter-dotplot, fig.width = 10, fig.height = 15}
+plot_grid(plot_1f, plot_1s_2f, ncol = 1, rel_heights = c(1, 1.4))
 ```
