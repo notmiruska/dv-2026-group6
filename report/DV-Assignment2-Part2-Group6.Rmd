@@ -1,11 +1,11 @@
 ---
-title: "DV Assignment 2: [Your Title Here]"
-author: "Group X: Firstname Lastname, Firstname Lastname, Firstname Lastname"
-date: "`r Sys.Date()`"
-output:
+title: "Almost all Amstelveen schools reach the basic reference level in maths and reading, but nine fall behind at the advanced level"
+subtitle: "Reading and maths results of 20 primary schools in 2024-2025, compared with national predictions and with similar schools"
+author: "Group 6: Kassandra Vroulli, Luna van Wonderen, Míra Sopuch"
+output: 
   html_document:
-    toc: true
-    toc_float: true
+    code_folding: hide
+    theme: flatly
 ---
 
 <!--
@@ -35,42 +35,585 @@ If knitting fails:
 This comment does not show up in the knitted .html, so you can leave it here.
 -->
 
-```{r setup, include = FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-# clear environment so knitting only depends on what's in this file
+```{r, include = FALSE}
 rm(list = ls())
 
-# installs (if missing) and loads every package this project uses - add any
-# new packages to scripts/00-packages.R, not here
+# load packages
 source("../scripts/00-packages.R")
 
-# downloads the data into data/raw/ if you don't already have it, then loads
-# eindscores, referentieniveaus, schooladviezen and schoolweging into this
-# session - see scripts/01-get-data.R for what each one contains
+# get data
 source(here("scripts", "01-get-data.R"))
 ```
 
-## Research question
+## **Research Question**
 
-*What are you investigating, and why does it matter? Who is the target audience for your final visualization, and how does that shape your choices? You can start from what you wrote in Part 1.*
+For the benefit of the municipality officer of Amstelveen, the Netherlands, this report aims to answer the following question: **which primary schools in Amstelveen are on track for reading and maths?**
 
-## Exploratory process
+The primary objective of a municipality officer when looking at the final visualization is to identify which schools need additional help. Therefore, in this report, it is assumed that there is a difference in the educational interventions tailored to maths and reading, so for each school, we report whether they are on track in each subject separately, rather than reporting a combined evaluation of both subjects. 
 
-*Describe how you explored the data before settling on your final visualization. Include at least one exploratory plot below (this can be the one from Part 1, or an updated one), and a short note on what it told you and how it influenced your final visualization.*
+We use DUO’s data on reference levels for group 8 pupils in the 2024–2025 school year. Reference levels describe what pupils should master at the end of primary school. For both subjects, there is a basic level (1F), which nearly every pupil should reach, and an advanced level: 1S for maths and 2F for reading. Pupils below the basic level are classified as “below 1F”.
 
-```{r exploratory-plot}
+DUO counts each pupil only once, at the highest level they reached. A pupil at 1S has therefore also reached 1F but only appears in the 1S column. To calculate the share of pupils reaching the advanced levels (1S and 2F), we add up the pupils at 1F and those at the advanced level. 
+
+To decide when a school is “on track”, we follow the Inspectorate of Education. It judges learning outcomes on two indicators (Staatssecretaris van Onderwijs, Cultuur en Wetenschap, 2026):
+
+- **Basic level:** at least 85% of pupils should reach 1F. This threshold is the same for every school.
+
+- **Advanced level:** the expected share depends on the school weighting (schoolweging), a measure of the pupil population. A higher weighting means more pupils come from disadvantaged backgrounds.
+
+We therefore call a school **on track** if it meets the 85% norm at the basic level and scores at or above the expected percentage for schools with a similar school weighting at the advanced level. For the advanced level, we use the regression-predicted percentage of comparable Dutch schools rather than the Inspectorate’s own signalling value. This decision was made because the Inspectorate's value is set so that only around 10% of schools fall below it, which makes it a minimum standard rather than a measure of being on track.
+
+## **Exploratory Process**
+
+We created three plots to explore the data structure and how to address the research question visually.
+
+```{r}
+# DATA PROCESSING
+
+municipality <- "Amstelveen"
+
+# select relevant reference-level variables
+count_cols <- c("REKENEN_LAGER1F", "REKENEN_1F", "REKENEN_1S",
+                "LV_LAGER1F", "LV_1F", "LV_2F")
+
+# instead of turning "<5" into NA, we use 2.5
+replace_lt5 <- function(x, lt5_value = 2.5) {
+  x <- as.character(x)
+  as.numeric(if_else(x == "<5", as.character(lt5_value), x))
+}
+
+ref_levels <- referentieniveaus |>
+  mutate(across(all_of(count_cols), replace_lt5)) |>
+  group_by(INSTELLINGSCODE) |>
+  summarise(
+    GEMEENTENAAM = first(GEMEENTENAAM),
+    INSTELLINGSNAAM_VESTIGING = first(INSTELLINGSNAAM_VESTIGING),
+    across(all_of(count_cols), ~ sum(.x, na.rm = TRUE)), .groups = "drop"
+  ) |>
+  mutate(
+    rekenen_n = REKENEN_LAGER1F + REKENEN_1F + REKENEN_1S,
+    reading_n = LV_LAGER1F + LV_1F + LV_2F,
+    math_1F = 100 * (REKENEN_1F + REKENEN_1S) / rekenen_n,
+    math_1S = 100 * REKENEN_1S / rekenen_n,
+    reading_1F = 100 * (LV_1F + LV_2F) / reading_n,
+    reading_2F = 100 * LV_2F / reading_n
+  ) |>
+  filter(rekenen_n > 0, reading_n > 0)
+
+school_weights <- schoolweging |>
+  mutate(INSTELLINGSCODE = str_remove(OVT, "\\|.*$")) |>
+  group_by(INSTELLINGSCODE) |>
+  summarise(schoolweging = weighted.mean(schoolweging, w = aantal_leerlingen),
+            .groups = "drop")
+
+school_data <- left_join(ref_levels, school_weights, by = "INSTELLINGSCODE")
+
+# exploratory plots use these
+national <- school_data |>
+  summarise(
+    # weighted.mean is weighted by the number of pupils. A school with 80
+    # pupils counts more than a school with 10.
+    math_1S = weighted.mean(math_1S, w = rekenen_n),
+    reading_2F = weighted.mean(reading_2F, w = reading_n)
+  )
+
+amstelveen_data <- school_data |>
+  filter(GEMEENTENAAM == municipality) |>
+  mutate(
+    maths_above = math_1S >= national$math_1S,
+    reading_above = reading_2F >= national$reading_2F,
+    quadrant = case_when(
+      maths_above & reading_above ~ "Above average in both",
+      !maths_above & !reading_above ~ "Below average in both",
+      TRUE ~ "Above average in one subject"
+    )
+  )
+
+# datasets used by final plots
+final_data <- school_data |>
+  filter(!is.na(schoolweging)) |>
+  select(INSTELLINGSNAAM_VESTIGING, GEMEENTENAAM, schoolweging,
+         rekenen_n, reading_n,
+         math_1F, math_1S, reading_1F, reading_2F) |>
+  pivot_longer(
+    cols = c(math_1F, math_1S, reading_1F, reading_2F),
+    names_to = "level",
+    values_to = "percentage"
+  ) |>
+  mutate(
+    subject = if_else(str_starts(level, "math"), "Maths", "Reading"),
+    type = if_else(str_ends(level, "1F"),
+                   "Basic level (1F)",
+                   "Target level (1S / 2F)"),
+    n_students = if_else(subject == "Maths", rekenen_n, reading_n)
+  ) |>
+  group_by(level) |>
+  mutate(
+    expected = predict(lm(percentage ~ schoolweging, weights = n_students)),
+    benchmark = if_else(type == "Basic level (1F)", 85, expected),
+    diff = percentage - benchmark
+  ) |>
+  ungroup()
 ```
 
-## Final visualization
+```{r, fig.align='center'}
+# CODE FOR EXPLORATORY PLOT 1
 
-*Your final, explanatory visualization goes below. Include a short write-up: what does it communicate, why is this the best way to communicate it, and how robust is the finding?*
+#Select data for plot
+plot_data <- amstelveen_data |>
+  select(
+    INSTELLINGSNAAM_VESTIGING,
+    schoolweging,
+    math_1S,
+    reading_2F
+  ) |>
+  pivot_longer(
+    cols = c(math_1S, reading_2F),
+    names_to = "level",
+    values_to = "percentage"
+  )
 
-```{r final-plot}
+#National benchmark for each higher reference level
+national_plot <- tibble(
+  level = c("math_1S", "reading_2F"),
+  benchmark = c(
+    national$math_1S,
+    national$reading_2F
+  )
+)
+
+#Create plot 1
+plot1 <- ggplot(
+  plot_data,
+  aes(x = percentage,
+      y = reorder(INSTELLINGSNAAM_VESTIGING, -schoolweging),
+      colour = level)
+) +
+  geom_vline(
+    data = national_plot,
+    aes(xintercept = benchmark, colour = level),
+    linetype = "dashed",
+    linewidth = 0.9
+  ) +
+  geom_point(size = 3.5) +
+  scale_colour_manual(
+    values = c(
+      "math_1S" = "#0072B2",
+      "reading_2F" = "#E69F00"
+    ),
+    labels = c(
+      "math_1S" = "Maths 1S",
+      "reading_2F" = "Reading 2F"
+    )
+  ) +
+  labs(
+    x = "Students reaching higher reference level (%)",
+    y = "School\n(by lowest schoolweging)",
+    colour = "Reference level"
+  ) +
+  guides(
+    colour = guide_legend(
+      override.aes = list(
+        linetype = 0,
+        shape = 16,
+        size = 3.5
+      )
+    )
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    panel.grid.major.x = element_line(linewidth = 0.5),
+    axis.text.y = element_text(size = 10),
+    plot.margin = margin(10, 15, 10, 10)
+  )
+
+plot1
 ```
+Figure 1 orders schools by school weighting, from most to least advantaged, and uses a dot plot to show the percentage of pupils reaching the higher level. The national average serves as a benchmark to assess school performance against. Maths and reading are coloured differently and plotted on the same axis to emphasize the difference in national benchmark percentages between them. What we like from this plot is the list of school names, which addresses the research question directly. The overlap between maths and reading dots, however, makes it difficult to distinguish which schools meet which benchmarks. This made us question using the national average as the threshold, as it overlooks school weighting differences.
 
-## Conclusion
+```{r, warning=FALSE, message=FALSE, fig.align='center'}
+# CODE FOR EXPLORATORY PLOT 2
 
-*What can you conclude from your visualization? What are the limitations of this analysis?*
+scatterplot_data <- amstelveen_data |>
+  select(INSTELLINGSNAAM_VESTIGING, schoolweging, math_1S, reading_2F) |>
+  pivot_longer(
+    cols = c(math_1S, reading_2F),
+    names_to = "level",
+    values_to = "percentage"
+  )
+
+scatter_interactive <- ggplot(
+  scatterplot_data,
+  aes(schoolweging,
+      percentage,
+      colour = level)
+) +
+  geom_point(aes(
+    text = paste0(
+      "<b>", INSTELLINGSNAAM_VESTIGING, "</b>",
+      "<br>", round(percentage, 2), "% reaching target level",
+      "<br>School weighting: ", round(schoolweging, 2)
+    )
+  )
+  ) +
+  geom_smooth(method = "lm", se = FALSE, alpha = 0.1) +
+  scale_colour_manual(
+    values = c("math_1S" = "#0072B2", "reading_2F" = "#E69F00")
+  ) +
+  labs(
+    title = "% of Students Reaching Higher Reference Level by School Weighting",
+    x = "School weighting (higher = more disadvantaged)",
+    y = "Percentage",
+    colour = "Level"
+  ) +
+  theme_bw()
+
+ggplotly(scatter_interactive, tooltip = "text")
+```
+Figure 2 interactively shows the percentage of students reaching advanced level against school weighting. A regression line was fitted for each subject. While different colours were used per subject, plotting them on the same axis caused some overlap. Tooltips show the school name, weighting and percentage of attainment. We found the regression line useful on this plot, as it takes school weighting into account, which we believed was a fairer reference for each school. However, we wondered whether an interactive plot was too exploratory for the final visualization, as the main findings should immediately be clear for a municipality officer.
+
+```{r, fig.align='center'}
+# CODE FOR EXPLORATORY PLOT 3
+
+# one-row data frames to label the two national average lines
+reading_label <- tibble(
+  x = national$reading_2F,
+  y = Inf,
+  label = "National average reading"
+)
+maths_label <- tibble(
+  x = Inf,
+  y = national$math_1S,
+  label = "National average maths"
+)
+
+plot3 <- ggplot(
+  data = amstelveen_data,
+  mapping = aes(x = reading_2F, y = math_1S)
+) +
+  geom_vline(xintercept = national$reading_2F,
+             linetype = "dashed", color = "grey50") +
+  geom_hline(yintercept = national$math_1S,
+             linetype = "dashed", color = "grey50") +
+  geom_label(data = reading_label, aes(x = x, y = y, label = label),
+             hjust = 0, vjust = 1, size = 3, fontface = "italic",
+             color = "grey40") +
+  geom_label(data = maths_label, aes(x = x, y = y, label = label),
+             hjust = 1, vjust = 0, size = 3, fontface = "italic",
+             color = "grey40") +
+  geom_point(aes(color = quadrant), size = 3) +
+  geom_text_repel(aes(label = INSTELLINGSNAAM_VESTIGING), size = 3,
+                  box.padding = 0.5, seed = 1, segment.color = NA) +
+  scale_color_manual(
+    values = c(
+      # colours also visible for colour-blind readers!
+      "Above average in both" = "#009E73",
+      "Above average in one subject" = "#E69F00",
+      "Below average in both" = "#B2182B"
+    ),
+    breaks = c(
+      "Above average in both",
+      "Above average in one subject",
+      "Below average in both"
+    )
+  ) +
+  labs(
+    title = "Amstelveen schools compared to the national average",
+    x = "% of pupils reaching reading level 2F",
+    y = "% of pupils reaching maths level 1S",
+    color = NULL
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+plot3
+```
+Figure 3 shows the percentages of pupils reaching advanced level in maths and reading. The national averages are the benchmarks, forming two lines that intersect. School names are placed next to the dots, making it easy to identify each school’s performance, and colours distinguish schools exceeding both averages (green), only one (orange), or neither (red). This layout highlights which schools need further intervention in which subject. We thought the colour-coding of the dots worked well on this plot, because it makes clear which schools pass which reference level. However, the overlap of school labels at the higher end of the plot was not ideal, and we again questioned whether the national average was a fair benchmark to choose.
+
+In our exploratory process, we also examined why some schools seemed to reach 100% attainment. Since DUO suppresses small student counts as "<5", these values ended up being treated as missing in our data pipeline, causing the computed percentage to incorrectly reach 100%. To avoid this and achieve more realistic values, we decided to use 2.5 instead of 0 or 5.
+
+Overall, the exploratory visualizations informed our final design choices, including adding school labels only for the ‘red’ schools so as not to overcrowd the plot, splitting the plot into two panels, using regression lines instead of the national averages as benchmarks, and using colour and dot size to represent differences in school performance and size.
+
+## **Final visualization**
+
+```{r, warning=FALSE}
+# FINAL INTERACTIVE VISUALIZATION
+
+municipality <- "Amstelveen"
+green <- "#16866A"
+pink <- "#B33668"
+
+muni_data <- final_data |>
+  filter(GEMEENTENAAM == municipality)
+
+muni_1f <- muni_data |>
+  filter(type == "Basic level (1F)") |>
+  mutate(
+    passed = factor(if_else(percentage >= 85, "Yes", "No"),
+                    levels = c("Yes", "No")),
+    tooltip = paste0(
+      "<strong>", INSTELLINGSNAAM_VESTIGING, "</strong><br>",
+      round(percentage, 2), "% reaching basic level (1F)<br>",
+      "Difference from 85% benchmark: ", round(percentage - 85, 2), "%<br>",
+      "School weighting: ", schoolweging, "<br>",
+      "Pupils tested: ", n_students
+    )
+  )
+
+muni_target <- muni_data |>
+  filter(type == "Target level (1S / 2F)") |>
+  mutate(
+    tooltip = paste0(
+      "<strong>", INSTELLINGSNAAM_VESTIGING, "</strong><br>",
+      round(percentage, 2), "% reaching advanced level<br>",
+      "National prediction: ", round(expected, 2), "<br>",
+      "Difference from national prediction: ", round(diff, 2), "%<br>",
+      "School weighting: ", round(schoolweging, 2), "<br>",
+      "Pupils tested: ", n_students
+    )
+  )
+
+muni_1f <- muni_1f |>
+  mutate(
+    school_label = paste0(
+      INSTELLINGSNAAM_VESTIGING,
+      if_else(INSTELLINGSNAAM_VESTIGING == "De Akker", "*", ""),
+      "\n", round(percentage, 2), "%"
+    )
+  )
+
+sensitive_target <- c("Elif Amstelveen", "Roelof Venemaschool", "Het Palet")
+
+muni_target <- muni_target |>
+  mutate(
+    school_label = paste0(
+      INSTELLINGSNAAM_VESTIGING,
+      if_else(INSTELLINGSNAAM_VESTIGING %in% sensitive_target, "*", "")
+    )
+  )
+
+theme_report <- theme_minimal(base_size = 16) +
+  theme(
+    text = element_text(family = "Lato", colour = "#2C3E50"),
+    plot.title.position = "plot",
+    # using text sizes relative to base_size
+    plot.title = element_text(
+      size = rel(1.4), face = "bold",
+      margin = margin(b = 7)
+    ),
+    plot.subtitle = element_text(
+      size = rel(1), colour = "#566573",
+      margin = margin(b = 16)
+    ),
+    plot.caption = element_text(
+      size = rel(0.9), colour = "#566573",
+      hjust = 0, margin = margin(t = 20)
+    ),
+    plot.caption.position = "plot",
+    strip.text = element_text(size = rel(1.1), face = "bold", hjust = 0.5),
+    strip.background = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(colour = "#E5E4E2", linewidth = 0.4),
+    panel.spacing.x = unit(0.75, "cm"),
+    axis.text = element_text(size = rel(0.9), colour = "#566573"),
+    axis.title = element_text(size = rel(1)),
+    axis.title.x = element_text(margin = margin(t = 10)),
+    axis.title.y = element_text(margin = margin(r = 10)),
+    legend.position = "right",
+    legend.box = "vertical",
+    legend.box.just = "left",
+    legend.margin = margin(t = 8, b = 8),
+    legend.title = element_text(
+      size = rel(0.9), margin = margin(b = 6),
+      hjust = 0
+    ),
+    legend.title.position = "top",
+    legend.text = element_text(size = rel(0.8)),
+    plot.margin = margin(t = 10, r = 10, b = 10, l = 10)
+  )
+
+plot_1f <- ggplot(muni_1f, aes(schoolweging, percentage)) +
+  # shade region below 85%
+  annotate(
+    "rect", xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = 85,
+    fill = pink, alpha = 0.045
+  ) +
+  geom_hline(yintercept = 85, colour = "#566573", linewidth = 0.6) +
+  geom_point_interactive(
+    aes(
+      colour = passed, size = n_students,
+      tooltip = tooltip, data_id = INSTELLINGSNAAM_VESTIGING
+    ),
+    shape = 16, alpha = 0.95
+  ) +
+  geom_text_repel(
+    data = muni_1f |> filter(passed == "No"),
+    aes(label = school_label),
+    colour = pink, size = 5,
+    fontface = "bold", family = "Lato",
+    nudge_y = -1, direction = "both",
+    box.padding = 0.5, point.padding = 0.4,
+    segment.colour = NA, seed = 1, max.overlaps = Inf
+  ) +
+  scale_colour_manual(
+    values = c(Yes = green, No = pink),
+    name = "Meets 85% norm"
+  ) +
+  scale_size_area(
+    max_size = 6, breaks = c(25, 50, 75, 100),
+    name = "Pupils tested"
+  ) +
+  facet_wrap(
+    vars(subject), nrow = 1,
+    labeller = as_labeller(
+      c(Maths = "Maths (1F)", Reading = "Reading (1F)")
+    )
+  ) +
+  labs(
+    title = paste0(
+      "Almost all schools in Amstelveen reach the basic reference level; ",
+      "only two\nfall below the national signalling value."
+    ),
+    subtitle = paste0(
+      "90% of schools (n = 18) meet the 85% norm in both",
+      " subjects, while 10% (n = 2) do not."
+    ),
+    x = "School weighting (higher = more disadvantaged)",
+    y = "% of pupils reaching 1F",
+    caption = paste0(
+      "Each dot is one Amstelveen primary school",
+      " (n = 20). Horizontal line: the ",
+      "Inspectorate's signalling value of 85%, the same for all schools\n",
+      "(Staatscourant 2026, nr. 26023). *Classification changes ",
+      "depending on how DUO's '<5' counts are handled (tested with 1, 2.5\n",
+      "and 4). In this plot '<5' counts are replaced by 2.5. Source: DUO."
+    )
+  ) +
+  theme_report
+
+plot_target <- ggplot(muni_target, aes(diff, reorder(school_label, diff))) +
+  geom_vline(
+    xintercept = 0, colour = "#566573",
+    linetype = "dashed", linewidth = 0.6
+  ) +
+  geom_segment(aes(x = 0, xend = diff, yend = reorder(school_label, diff)),
+               colour = "lightgrey", linewidth = 0.6) +
+  geom_point_interactive(
+    aes(
+      colour = diff, size = n_students,
+      tooltip = tooltip, data_id = INSTELLINGSNAAM_VESTIGING
+    ),
+    alpha = 0.98
+  ) +
+  scale_colour_gradient2(
+    low = pink, mid = "#B8C3C8", high = green, midpoint = 0,
+    limits = c(-10, 10), oob = scales::squish,
+    breaks = c(-10, -5, 0, 5, 10),
+    labels = c("-10 or less", "-5", "0", "+5", "+10 or more"),
+    name = "Difference from\nexpected(%)"
+  ) +
+  scale_size_area(
+    max_size = 6, breaks = c(25, 50, 75, 100),
+    name = "Pupils tested"
+  ) +
+  facet_wrap(
+    vars(subject), nrow = 1,
+    labeller = as_labeller(
+      c(Maths = "Maths (1S)", Reading = "Reading (2F)")
+    )
+  ) +
+  labs(
+    title = paste0(
+      "Most schools in Amstelveen are on track at the advanced ",
+      "reference level; nine\n fall behind the national prediction ",
+      "in at least one subject."
+    ),
+    subtitle = paste0(
+      "55% of schools (n = 11) score at or above the national prediction ",
+      "in both subjects, while 45% (n = 9) do not."
+    ),
+    x = "% below/above the national prediction",
+    y = NULL,
+    caption = paste0(
+      "Dashed line: predicted percentage of pupils reaching the advanced ",
+      "reference level for schools with a similar school weighting,\n",
+      "based on a regression on all 5,771 Dutch primary schools, weighted ",
+      "by number of pupils. Schools are ordered by their average\n",
+      "difference across maths and reading. *Classification changes ",
+      "depending on how DUO's '<5' counts are handled (tested with\n",
+      "1, 2.5 and 4). In this plot '<5' counts are replaced by 2.5. ",
+      "Source: DUO."
+    )
+  ) +
+  theme_report
+
+combined_plot <- wrap_plots(
+  free(plot_1f, side = "l"),
+  plot_target,
+  ncol = 1,
+  heights = c(7, 9)
+)
+
+final_interactive <- girafe(
+  ggobj = combined_plot,
+  width_svg = 12, height_svg = 16,
+  options = list(
+    opts_tooltip(
+      css = paste0(
+        "background-color: #2C3E50;",
+        "color: white;",
+        "border: 10px solid #2C3E50;",
+        "font-family: Lato, sans-serif;"
+      )
+    )
+  )
+)
+
+final_interactive
+```
+Our final explanatory visualization is shown Figure 4. It addresses our research question in two steps: it checks whether at least 85% of pupils in each school meets the basic level, and it compares school performance on the advanced level with the percentage predicted by a regression fitted on data from all Dutch primary schools, accounting for school weighting and number of pupils.
+
+### **Why this design**
+
+After the exploratory phase we concluded that both levels need different plots. At the basic level, one threshold applies to every school, so a scatter plot with a single benchmark directly identifies those below it. At the advanced level, national predictions vary by school, so we instead use a ranked dot plot showing each school’s difference from the corresponding prediction which keeps all school names readable and puts the schools needing attention at the bottom.
+
+### **Robustness**
+
+DUO reports counts of one to four pupils as “<5”. We replaced these with 2.5 and repeated the analysis with 1 and 4. De Cirkel falls below the 1F norm in every analysis, and eight of the nine schools initially below the national prediction remain below it on the advanced level. The few schools whose classifications changed across analyses are marked with an asterisk. Because one pupil can shift a small school’s percentage by several points, schools with only a few pupils should be interpreted with caution.
+
+### **Basic level (1F)**
+
+The top two panels show the relationship between school weighting and the percentage of pupils reaching the basic level (1F) in maths and reading in Amstelveen primary schools. The plot displays the two subjects in separate panels side by side, to make differences between them easy to identify. The horizontal line is the Inspectorate’s 85% signalling value, which applies to all schools. Schools that meet this threshold are shown as green dots, while schools below it as magenta. The colour scheme is colour-blind friendly, and dot size represents the number of pupils tested. To avoid clutter, while keeping the main findings clear at a glance, we only label the two schools below the 85% threshold. Interactive tooltips then provide the school name, attainment percentage, difference from the 85% benchmark, school weighting, and number of pupils tested. Selecting a dot also highlights the corresponding school in the adjacent panel.
+
+Almost all schools reach the basic level: 18 of 20 meet the norm in both subjects. Only De Akker (84.85%) and De Cirkel (81.82%) fall below it, both in maths, while every school is above 85% in reading. At the basic level, maths is therefore the bigger concern, and these two schools need further attention regarding that subject.
+
+
+### **Advanced level (1S/2F)**
+
+Since nearly all schools reach the basic level, it reveals little about differences in how well they perform. The bottom panels therefore show performance at advanced level (1S for maths, 2F for reading), where schools differ more. To account for differences in pupils' backgrounds, we decided against using a single national benchmark. Instead, we compare each school with the expected performance of Dutch schools with similar school weighting, estimated using a regression weighted by the number of students tested per school.
+
+Each row represents one school. The x-axis shows the percentage-points difference from expectation, with the dashed line at zero representing the regression-predicted level. Schools are ranked by their average difference across both subjects, from the strongest schools at the top to those needing attention at the bottom. Colours range from magenta to green, with full intensity at ±10 percentage points.
+
+Eleven schools (55%) meet or exceed expectations in both subjects. Nine (45%) fall below in at least one, of which three (15%) fall below in both. Most schools score well above expectation in maths, while reading results lie closer to the expected level. Two schools stand out at both levels: De Cirkel is below the 1F norm in maths and below expected in both subjects at the advanced level. De Akker is below the 1F norm and well below expected in maths, although it scores above expected in reading. This suggests that support should be tailored to each school’s specific needs rather than focusing on performance alone.
+
+## **Conclusion**
+The final visualization highlights that while 18 out of 20 schools are on track in both reading and maths on the basic level, nine fall below national predictions at the advanced level in at least one subject. Two schools stand out: De Akker needs support in maths, and De Cirkel requires attention in both subjects. These results can support decisions in the municipality of Amstelveen regarding subject-specific interventions, but the interpretation of results from schools with only a few number of pupils tested should be handled with caution.
+
+## **AI disclosure**
+
+We used AI to speed up the process of finding specific functions when adding new elements to a plot. An example would be adding asterisks for the schools that were classified differently after changing the `<5` labels to `2.5`.
+
+Additionally, AI was used as an aid in creating the interactive visualization, as this involved the use of the `ggiraph` package, which we were less familiar with. For this, we used our already existing static data visualization as a basis, and asked for suggestions on how to make it interactive. We assessed whether these suggestions aligned with our expectations of what we wanted the graph to look like, and tailored the tips given by AI to our own needs.
+
+We learned that AI was useful for speeding up tasks such as searching for specific functions and studying new packages. This, however, required careful review and we made a lot of corrections ourselves, as sometimes it suggested unnecessary additional packages or changes that did not work or did not appeal to us. 
+
+The models used were the ones available in UvA AI, primarily GPT-5 and Claude Sonnet. We provided snippets of our own code and images of our current graphs for context. We did not use AI in the writing process.
+
+
+## **References**
+
+Staatssecretaris van Onderwijs, Cultuur en Wetenschap. (2026, 21 juli). *Regeling van de Staatssecretaris van Onderwijs, Cultuur en Wetenschap van 10 juli 2026, nr. OVO/63600598, tot wijziging van de Regeling leerresultaten PO 2020 in verband met de actualisering van de signaleringswaarden* (Staatscourant 2026, nr. 26023). https://zoek.officielebekendmakingen.nl/stcrt-2026-26023.pdf
 
 ---
 
