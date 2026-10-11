@@ -31,8 +31,10 @@ packages <- c(
   "htmlwidgets", # saving an interactive plot as its own .html file
   "lintr", # code style check before submitting
   "rmarkdown", # knitting the report
-  "tidyverse" # readr, dplyr, tidyr, ggplot2, stringr, ... - loaded last
-  # so its functions win any name clash with the packages above
+  "sysfonts", # load Google fonts such as Lato (font_add_google())
+  "showtext", # use those fonts in plots (showtext_auto())
+  # tidyverse last, so its functions win any name clash with the packages above
+  "tidyverse"
 )
 
 missing <- packages[!packages %in% installed.packages()[, "Package"]]
