@@ -572,7 +572,7 @@ final_interactive <- girafe(
 
 final_interactive
 ```
-Our final explanatory visualization is shown Figure 4. It addresses our research question in two steps: it checks whether at least 85% of pupils in each school meets the basic level, and it compares school performance on the advanced level with the percentage predicted by a regression fitted on data from all Dutch primary schools, accounting for school weighting and number of pupils.
+Our final explanatory visualization is shown in Figure 4. It addresses our research question in two steps: it checks whether at least 85% of pupils in each school meets the basic level, and it compares school performance on the advanced level with the percentage predicted by a regression fitted on data from all Dutch primary schools, accounting for school weighting and number of pupils.
 
 ### **Why this design**
 
@@ -595,10 +595,10 @@ Since nearly all schools reach the basic level, it reveals little about differen
 
 Each row represents one school. The x-axis shows the percentage-points difference from expectation, with the dashed line at zero representing the regression-predicted level. Schools are ranked by their average difference across both subjects, from the strongest schools at the top to those needing attention at the bottom. Colours range from magenta to green, with full intensity at ±10 percentage points.
 
-Eleven schools (55%) meet or exceed expectations in both subjects. Nine (45%) fall below in at least one, of which three (15%) fall below in both. Most schools score well above expectation in maths, while reading results lie closer to the expected level. Two schools stand out at both levels: De Cirkel is below the 1F norm in maths and below expected in both subjects at the advanced level. De Akker is below the 1F norm and well below expected in maths, although it scores above expected in reading. This suggests that support should be tailored to each school’s specific needs rather than focusing on performance alone.
+Eleven schools (55%) meet or exceed expectations in both subjects. Nine (45%) fall below in at least one, of which three (15%) fall below in both. Most schools score well above expectation in maths, while reading results lie closer to the expected level. Two schools stand out at both levels: De Cirkel is below the 1F norm in maths and below expected in both subjects at the advanced level. De Akker is below the 1F norm and well below expected in maths, although it scores above expected in reading.
 
 ## **Conclusion**
-The final visualization highlights that while 18 out of 20 schools are on track in both reading and maths on the basic level, nine fall below national predictions at the advanced level in at least one subject. Two schools stand out: De Akker needs support in maths, and De Cirkel requires attention in both subjects. These results can support decisions in the municipality of Amstelveen regarding subject-specific interventions, but the interpretation of results from schools with only a few number of pupils tested should be handled with caution.
+The final visualization highlights that while 18 out of 20 schools are on track in both reading and maths on the basic level, nine fall below national predictions at the advanced level in at least one subject. Two schools stand out: De Akker needs support in maths, and De Cirkel requires attention in both subjects. These results can support decisions in the municipality of Amstelveen regarding subject-specific interventions, but the interpretation of results from schools with only a few pupils tested should be handled with caution.
 
 ## **AI disclosure**
 
