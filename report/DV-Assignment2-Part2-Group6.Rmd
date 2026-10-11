@@ -614,7 +614,3 @@ The models used were the ones available in UvA AI, primarily GPT-5 and Claude So
 ## **References**
 
 Staatssecretaris van Onderwijs, Cultuur en Wetenschap. (2026, 21 juli). *Regeling van de Staatssecretaris van Onderwijs, Cultuur en Wetenschap van 10 juli 2026, nr. OVO/63600598, tot wijziging van de Regeling leerresultaten PO 2020 in verband met de actualisering van de signaleringswaarden* (Staatscourant 2026, nr. 26023). https://zoek.officielebekendmakingen.nl/stcrt-2026-26023.pdf
-
----
-
-**Before submitting:** run the lintr check on this file, and re-knit from a clean environment (`rm(list = ls())`, already done above) to make sure everything reproduces from scratch.
