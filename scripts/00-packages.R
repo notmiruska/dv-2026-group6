@@ -33,6 +33,8 @@ packages <- c(
   "rmarkdown", # knitting the report
   "sysfonts", # load Google fonts such as Lato (font_add_google())
   "showtext", # use those fonts in plots (showtext_auto())
+  "ggiraph",
+  "patchwork",
   # tidyverse last, so its functions win any name clash with the packages above
   "tidyverse"
 )
